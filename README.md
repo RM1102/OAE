@@ -20,23 +20,11 @@ Four modes in one app:
 
 ## Download (prebuilt)
 
-Published **Release** builds (DMG + SHA256) are attached on GitHub when you push a version tag such as `v1.0.0`:
+**[https://github.com/RM1102/OAE/releases/latest](https://github.com/RM1102/OAE/releases/latest)** — download `OAE-v*.dmg`, open it, drag **OAE** into **Applications**, then launch from Applications. No Terminal steps: release DMGs are **Developer ID signed and notarized** in CI.
 
-**[https://github.com/RM1102/OAE/releases/latest](https://github.com/RM1102/OAE/releases/latest)**
+**Repository maintainers:** that only works after a **one-time** setup of GitHub Actions secrets (Apple certificate + App Store Connect API key for notarization). Until those are set, pushing a release tag **fails on purpose** so broken DMGs are never published. Step-by-step: [docs/RELEASING.md](docs/RELEASING.md).
 
-1. Download `OAE-v*.dmg` from the latest release **Assets**.
-2. Open the DMG and drag **OAE** into **Applications**.
-3. First launch: if macOS says **“OAE” is damaged and can’t be opened** or **unidentified developer**, that is **Gatekeeper** (quarantine + code signature), not a corrupted download. After copying to `/Applications`, either **right-click → Open** once, or clear quarantine:
-
-   ```bash
-   xattr -dr com.apple.quarantine /Applications/OAE.app
-   ```
-
-   Releases built **with** Apple **Developer ID + notarization** in CI (see [docs/RELEASING.md](docs/RELEASING.md)) should open without this step. Releases built **without** those repo secrets are ad-hoc signed for automation only and may require the command above.
-
-4. Open OAE from Applications. The in-app assistant installs bundled Whisper files when needed and sets up **Ollama** + the default local model on first run (internet required once). See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for where models come from.
-
-Maintainers: see [docs/RELEASING.md](docs/RELEASING.md) for tag-driven CI, signing secrets, and notarization.
+After first launch, the in-app assistant installs bundled Whisper when needed and sets up **Ollama** + the default local model (internet required once). See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for model sources.
 
 ## Quick start
 

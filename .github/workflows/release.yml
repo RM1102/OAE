@@ -1,5 +1,6 @@
-# Build a Release OAE.app, embed the default Whisper CoreML bundle, create a UDZO DMG,
-# and publish a GitHub Release when a version tag v* is pushed (e.g. v1.2.3).
+# Build a Release OAE.app, embed Whisper, sign with Developer ID, notarize + staple the DMG,
+# and publish a GitHub Release when a version tag v* is pushed.
+# Requires repository Actions secrets (see docs/RELEASING.md) so the DMG opens with no Terminal/xattr.
 name: Release
 
 on:
@@ -20,6 +21,15 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Require distribution secrets (signing + notarization)
+        env:
+          MACOS_CERTIFICATE_P12: ${{ secrets.MACOS_CERTIFICATE_P12 }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          APP_STORE_CONNECT_API_KEY_P8: ${{ secrets.APP_STORE_CONNECT_API_KEY_P8 }}
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+        run: bash scripts/ci_require_github_release_secrets.sh
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -39,9 +49,7 @@ jobs:
         if: steps.whisper_cache.outputs.cache-hit != 'true'
         run: python3 scripts/download_default_whisper_model.py .ci-whisper-model
 
-      # Optional: MACOS_CERTIFICATE_P12 + MACOS_CERTIFICATE_PASSWORD + App Store Connect API key
-      # secrets enable Developer ID signing + notarization so downloads pass Gatekeeper.
-      - name: Set up macOS code signing (optional)
+      - name: Import Developer ID certificate
         env:
           MACOS_CERTIFICATE_P12: ${{ secrets.MACOS_CERTIFICATE_P12 }}
           MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
@@ -57,7 +65,7 @@ jobs:
           OAE_DMG_STAGE_DIR: ${{ github.workspace }}/dmg-staging-${{ github.ref_name }}
         run: bash scripts/build_dragdrop_dmg.sh
 
-      - name: Notarize DMG (when signing + API key secrets are configured)
+      - name: Notarize and staple DMG
         env:
           APP_STORE_CONNECT_API_KEY_P8: ${{ secrets.APP_STORE_CONNECT_API_KEY_P8 }}
           APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}

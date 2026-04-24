@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # Import a Developer ID .p12 into a temporary keychain for GitHub Actions.
-# When MACOS_CERTIFICATE_P12 is unset or empty, writes empty OAE_CODESIGN_IDENTITY to GITHUB_ENV and exits 0.
+# Release workflow runs ci_require_github_release_secrets.sh first, so a .p12 is always expected here.
 #
-# Required env when using a certificate:
+# Required env:
 #   MACOS_CERTIFICATE_P12       Base64-encoded PKCS#12 (Developer ID Application)
 #   MACOS_CERTIFICATE_PASSWORD  Password for the .p12
 #
 # Optional:
-#   GITHUB_ENV                  If set, appends OAE_CODESIGN_IDENTITY=... for later steps
+#   GITHUB_ENV                  If set, appends OAE_CODESIGN_IDENTITY and OAE_REQUIRE_NOTARIZE for later steps
 set -euo pipefail
 
 append_env() {
@@ -30,10 +30,8 @@ append_multiline_env() {
 }
 
 if [[ -z "${MACOS_CERTIFICATE_P12:-}" ]]; then
-  echo "[ci-sign] No MACOS_CERTIFICATE_P12 — DMG will be ad-hoc signed (Gatekeeper may block downloads)."
-  append_env "OAE_CODESIGN_IDENTITY="
-  append_env "OAE_REQUIRE_NOTARIZE=0"
-  exit 0
+  echo "[ci-sign] MACOS_CERTIFICATE_P12 is empty (ci_require_github_release_secrets.sh should have failed earlier)." >&2
+  exit 1
 fi
 
 if [[ -z "${MACOS_CERTIFICATE_PASSWORD:-}" ]]; then
