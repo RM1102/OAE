@@ -26,15 +26,17 @@ Published **Release** builds (DMG + SHA256) are attached on GitHub when you push
 
 1. Download `OAE-v*.dmg` from the latest release **Assets**.
 2. Open the DMG and drag **OAE** into **Applications**.
-3. First launch: macOS may show *“OAE can’t be opened because it is from an unidentified developer”* (or similar). **Right-click** OAE in Finder → **Open** → confirm **Open** once, or clear quarantine after copying to Applications:
+3. First launch: if macOS says **“OAE” is damaged and can’t be opened** or **unidentified developer**, that is **Gatekeeper** (quarantine + code signature), not a corrupted download. After copying to `/Applications`, either **right-click → Open** once, or clear quarantine:
 
    ```bash
    xattr -dr com.apple.quarantine /Applications/OAE.app
    ```
 
+   Releases built **with** Apple **Developer ID + notarization** in CI (see [docs/RELEASING.md](docs/RELEASING.md)) should open without this step. Releases built **without** those repo secrets are ad-hoc signed for automation only and may require the command above.
+
 4. Open OAE from Applications. The in-app assistant installs bundled Whisper files when needed and sets up **Ollama** + the default local model on first run (internet required once). See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for where models come from.
 
-Maintainers: see [docs/RELEASING.md](docs/RELEASING.md) for tag-driven CI and local packaging.
+Maintainers: see [docs/RELEASING.md](docs/RELEASING.md) for tag-driven CI, signing secrets, and notarization.
 
 ## Quick start
 

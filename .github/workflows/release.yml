@@ -39,6 +39,14 @@ jobs:
         if: steps.whisper_cache.outputs.cache-hit != 'true'
         run: python3 scripts/download_default_whisper_model.py .ci-whisper-model
 
+      # Optional: MACOS_CERTIFICATE_P12 + MACOS_CERTIFICATE_PASSWORD + App Store Connect API key
+      # secrets enable Developer ID signing + notarization so downloads pass Gatekeeper.
+      - name: Set up macOS code signing (optional)
+        env:
+          MACOS_CERTIFICATE_P12: ${{ secrets.MACOS_CERTIFICATE_P12 }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+        run: bash scripts/ci_setup_macos_signing.sh
+
       - name: Build Release + DMG
         env:
           OAE_BUILD_CONFIGURATION: Release
@@ -48,6 +56,20 @@ jobs:
           OAE_DMG_BASENAME: OAE-${{ github.ref_name }}
           OAE_DMG_STAGE_DIR: ${{ github.workspace }}/dmg-staging-${{ github.ref_name }}
         run: bash scripts/build_dragdrop_dmg.sh
+
+      - name: Notarize DMG (when signing + API key secrets are configured)
+        env:
+          APP_STORE_CONNECT_API_KEY_P8: ${{ secrets.APP_STORE_CONNECT_API_KEY_P8 }}
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          APP_STORE_CONNECT_TEAM_ID: ${{ secrets.APP_STORE_CONNECT_TEAM_ID }}
+          APP_STORE_CONNECT_API_KEY_P8_IS_B64: ${{ vars.APP_STORE_CONNECT_API_KEY_P8_IS_B64 }}
+        run: |
+          set -euxo pipefail
+          TAG="${GITHUB_REF_NAME}"
+          DMG="${GITHUB_WORKSPACE}/artifacts/OAE-${TAG}.dmg"
+          test -f "$DMG"
+          bash scripts/notarize_dmg.sh "$DMG"
 
       - name: Create GitHub Release
         env:

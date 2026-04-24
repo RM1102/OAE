@@ -125,6 +125,24 @@ APP_BUNDLED_MODELS="$STAGE_DIR/OAE.app/Contents/Resources/BundledModels"
 mkdir -p "$APP_BUNDLED_MODELS"
 cp -R "$MODEL_SOURCE_PATH" "$APP_BUNDLED_MODELS/"
 
+# Copying into the bundle invalidates the Xcode build signature; always deep re-sign before DMG.
+ENTITLEMENTS_FILE="$PROJECT_DIR/OAE/Resources/OAE.entitlements"
+if [[ ! -f "$ENTITLEMENTS_FILE" ]]; then
+  echo "[dmg] Missing entitlements: $ENTITLEMENTS_FILE" >&2
+  exit 1
+fi
+SIGN_ID="${OAE_CODESIGN_IDENTITY:--}"
+if [[ -n "${OAE_CODESIGN_IDENTITY:-}" ]]; then
+  echo "[dmg] Deep signing staged app (Developer ID / distribution): $SIGN_ID"
+else
+  echo "[dmg] Deep signing staged app ad-hoc (-) after embedding models (local/unsigned CI)"
+fi
+codesign --force --deep --options runtime \
+  --entitlements "$ENTITLEMENTS_FILE" \
+  --sign "$SIGN_ID" \
+  "$STAGE_DIR/OAE.app"
+codesign --verify --deep --strict --verbose=2 "$STAGE_DIR/OAE.app"
+
 echo "[dmg] Creating DMG..."
 mkdir -p "$OUT_DIR"
 rm -f "$DMG_PATH"
