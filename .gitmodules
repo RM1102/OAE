@@ -1,0 +1,18 @@
+[submodule "vendor/whisper.cpp"]
+	path = vendor/whisper.cpp
+	url = https://github.com/ggml-org/whisper.cpp.git
+[submodule "vendor/handy"]
+	path = vendor/handy
+	url = https://github.com/cjpais/handy.git
+[submodule "vendor/metawhisp"]
+	path = vendor/metawhisp
+	url = https://github.com/metawhisp/metawhisp.git
+[submodule "vendor/whisperkit"]
+	path = vendor/whisperkit
+	url = https://github.com/argmaxinc/WhisperKit.git
+[submodule "vendor/whisper-stream-server"]
+	path = vendor/whisper-stream-server
+	url = https://github.com/kingbootoshi/whisper-stream-server.git
+[submodule "vendor/whisper_streaming"]
+	path = vendor/whisper_streaming
+	url = https://github.com/ufal/whisper_streaming.git

@@ -1,0 +1,59 @@
+# Build a Release OAE.app, embed the default Whisper CoreML bundle, create a UDZO DMG,
+# and publish a GitHub Release when a version tag v* is pushed (e.g. v1.2.3).
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  dmg:
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Cache Whisper CoreML bundle
+        id: whisper_cache
+        uses: actions/cache@v4
+        with:
+          path: .ci-whisper-model
+          key: ${{ runner.os }}-oae-whisper-openai-large-v3-626mb-v3
+
+      - name: Install packaging dependencies
+        run: pip3 install -r scripts/requirements-dmg-ci.txt
+
+      - name: Download default Whisper variant (Hugging Face)
+        if: steps.whisper_cache.outputs.cache-hit != 'true'
+        run: python3 scripts/download_default_whisper_model.py .ci-whisper-model
+
+      - name: Build Release + DMG
+        env:
+          OAE_BUILD_CONFIGURATION: Release
+          OAE_DERIVED_DATA_PATH: ${{ github.workspace }}/.derivedData
+          OAE_MODEL_SOURCE_DIR: ${{ github.workspace }}/.ci-whisper-model
+          OAE_DMG_OUT_DIR: ${{ github.workspace }}/artifacts
+          OAE_DMG_BASENAME: OAE-${{ github.ref_name }}
+          OAE_DMG_STAGE_DIR: ${{ github.workspace }}/dmg-staging-${{ github.ref_name }}
+        run: bash scripts/build_dragdrop_dmg.sh
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euxo pipefail
+          TAG="${GITHUB_REF_NAME}"
+          DMG="${GITHUB_WORKSPACE}/artifacts/OAE-${TAG}.dmg"
+          SHA="${GITHUB_WORKSPACE}/artifacts/OAE-${TAG}.dmg.sha256"
+          test -f "$DMG"
+          test -f "$SHA"
+          gh release create "$TAG" "$DMG" "$SHA" --generate-notes

@@ -1,0 +1,46 @@
+node_modules/
+dist/
+target/
+.DS_Store
+src-tauri/gen/
+bun.lockb
+*.log
+*.tmp
+*.temp
+.env
+.env.*
+!.env.example
+.idea/
+.vscode/
+
+# ---- macOS / Xcode ----
+build/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+*.dSYM/
+*.dmg
+# XcodeGen-generated project — regenerate via scripts/bootstrap.sh
+apps/oae-mac/OAE.xcodeproj/xcuserdata/
+apps/oae-mac/OAE.xcodeproj/project.xcworkspace/xcuserdata/
+
+# Swift Package Manager
+.swiftpm/
+.build/
+Package.resolved
+
+# ---- Rust / Tauri ----
+**/target/
+
+# ---- Python ----
+__pycache__/
+*.pyc
+
+# ---- Local tool caches ----
+.cache/
+
+# ---- CI / release packaging ----
+.ci-whisper-model/
+.derivedData/
+artifacts/
+dmg-staging-*/

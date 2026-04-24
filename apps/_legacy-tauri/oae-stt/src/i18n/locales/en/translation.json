@@ -1,0 +1,38 @@
+{
+  "app": { "title": "OAE STT" },
+  "nav": { "live": "Live", "file": "File", "history": "History", "settings": "Settings" },
+  "onboarding": {
+    "handyDetected": "Handy models detected — we read them directly; nothing is copied.",
+    "noModels": "Download a model to get started (saved only under OAE's app data, not Handy's folder).",
+    "dismiss": "Got it"
+  },
+  "live": {
+    "start": "Start recording",
+    "stop": "Stop & transcribe",
+    "shortcutHint": "Shortcut: {{key}} (toggle). Speak, then stop.",
+    "clear": "Clear",
+    "copyAll": "Copy all"
+  },
+  "file": {
+    "drop": "Drop audio here or choose file",
+    "pick": "Choose file",
+    "exportTxt": "Export .txt",
+    "exportSrt": "Export .srt",
+    "progress": "Progress: {{pct}}%"
+  },
+  "models": {
+    "title": "Model",
+    "openFolder": "Open models folder",
+    "fromHandy": "Handy",
+    "local": "Local",
+    "custom": "Custom",
+    "download": "Download"
+  },
+  "settings": {
+    "vadThreshold": "VAD threshold (Silero)",
+    "autoPaste": "Auto-paste (requires Accessibility — experimental)",
+    "mic": "Microphone",
+    "refreshMics": "Refresh devices"
+  },
+  "errors": { "generic": "Something went wrong" }
+}
