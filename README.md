@@ -22,7 +22,7 @@ Four modes in one app:
 
 Published **Release** builds (DMG + SHA256) are attached on GitHub when you push a version tag such as `v1.0.0`:
 
-**[https://github.com/RM_1102/OAE/releases/latest](https://github.com/RM_1102/OAE/releases/latest)**
+**[https://github.com/RM1102/OAE/releases/latest](https://github.com/RM1102/OAE/releases/latest)**
 
 1. Download `OAE-v*.dmg` from the latest release **Assets**.
 2. Open the DMG and drag **OAE** into **Applications**.

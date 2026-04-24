@@ -37,6 +37,6 @@ bash scripts/build_dragdrop_dmg.sh
 
 After the first successful release, share:
 
-`https://github.com/RM_1102/OAE/releases/latest`
+`https://github.com/RM1102/OAE/releases/latest`
 
-(Replace `OAE` if the repository name differs.)
+(Replace `RM1102` or `OAE` if your GitHub user or repository name differs.)
