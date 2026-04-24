@@ -55,28 +55,49 @@ fi
 echo "[dmg] Using bundled model payload: $MODEL_SOURCE_PATH"
 
 echo "[dmg] Building $SCHEME ($CONFIGURATION)..."
+BUILD_LOG="${TMPDIR:-/tmp}/oae-dmg-build.log"
+XB=(
+  xcodebuild
+  -scheme "$SCHEME"
+  -configuration "$CONFIGURATION"
+  -project "$PROJECT_DIR/OAE.xcodeproj"
+)
 if [[ -n "$DERIVED_CUSTOM" ]]; then
   mkdir -p "$DERIVED_CUSTOM"
-  xcodebuild \
-    -scheme "$SCHEME" \
-    -configuration "$CONFIGURATION" \
-    -project "$PROJECT_DIR/OAE.xcodeproj" \
-    -derivedDataPath "$DERIVED_CUSTOM" \
-    build >"${TMPDIR:-/tmp}/oae-dmg-build.log" 2>&1
+  XB+=(-derivedDataPath "$DERIVED_CUSTOM")
+fi
+XB+=(build)
+# GitHub-hosted runners have no Apple Development cert for our team; use ad-hoc sign.
+if [[ "${GITHUB_ACTIONS:-false}" == "true" ]]; then
+  echo "[dmg] GITHUB_ACTIONS=true: ad-hoc code signing (CODE_SIGN_IDENTITY=-, CODE_SIGNING_REQUIRED=NO)"
+  XB+=(
+    CODE_SIGN_IDENTITY="-"
+    CODE_SIGN_STYLE=Manual
+    DEVELOPMENT_TEAM=""
+    CODE_SIGNING_REQUIRED=NO
+  )
+fi
+
+set +e
+"${XB[@]}" 2>&1 | tee "$BUILD_LOG"
+xc=${PIPESTATUS[0]}
+set -e
+if [[ "$xc" -ne 0 ]]; then
+  echo "[dmg] xcodebuild failed (exit $xc). Last 80 lines of $BUILD_LOG:" >&2
+  tail -n 80 "$BUILD_LOG" >&2 || true
+  exit "$xc"
+fi
+
+if [[ -n "$DERIVED_CUSTOM" ]]; then
   LATEST_APP="$DERIVED_CUSTOM/Build/Products/$CONFIGURATION/OAE.app"
 else
   DERIVED_BASE="${HOME}/Library/Developer/Xcode/DerivedData"
-  xcodebuild \
-    -scheme "$SCHEME" \
-    -configuration "$CONFIGURATION" \
-    -project "$PROJECT_DIR/OAE.xcodeproj" \
-    build >"${TMPDIR:-/tmp}/oae-dmg-build.log" 2>&1
   LATEST_APP="$(ls -td "$DERIVED_BASE"/OAE-*/Build/Products/"$CONFIGURATION"/OAE.app 2>/dev/null | head -n 1)"
 fi
 
 if [[ ! -d "${LATEST_APP:-}" ]]; then
-  echo "[dmg] Could not locate built OAE.app (see ${TMPDIR:-/tmp}/oae-dmg-build.log)" >&2
-  tail -n 40 "${TMPDIR:-/tmp}/oae-dmg-build.log" >&2 || true
+  echo "[dmg] Could not locate built OAE.app at $LATEST_APP (see $BUILD_LOG)" >&2
+  tail -n 40 "$BUILD_LOG" >&2 || true
   exit 1
 fi
 
