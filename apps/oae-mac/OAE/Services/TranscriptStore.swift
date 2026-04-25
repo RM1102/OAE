@@ -19,11 +19,9 @@ public final class TranscriptStore: ObservableObject {
     /// Latest live study batch from a longer window (Dictate only; inferred — verify on board).
     @Published public private(set) var dictateLiveStudyPreview: String = ""
     @Published public private(set) var dictateLivePostProcessBusy: Bool = false
-    /// Engine-aligned confirmed words for the subtitle island (WhisperKit confirmed segments; not merged `stabilizedWords` text).
+    /// Engine-aligned subtitle lanes for Dictate overlay.
     @Published public private(set) var subtitleConfirmedWords: [String] = []
-    /// Pending / partial lane for the subtitle island (same string as dictate `partial`).
     @Published public private(set) var subtitleVolatileWords: [String] = []
-    /// Dictate session id for subtitle feed; compositor ignores frames when this does not match.
     @Published public private(set) var subtitleFeedDictateSessionID: UUID = UUID()
 
     private var dictateLiveBackgroundDepth: Int = 0
@@ -114,10 +112,8 @@ public final class TranscriptStore: ObservableObject {
     public func applyDictateUpdate(sessionID: UUID, confirmedRows: [TranscriptSegmentRow], partial: String, rewriteLookbackWords: Int = 10) {
         guard sessionID == sessionIDs[.dictate] else { return }
         mutateBucket(for: .dictate) { bucket in
-            let engineConfirmed = Self.tokenizeWords(
-                confirmedRows.map { $0.text.trimmingCharacters(in: .whitespacesAndNewlines) }.joined(separator: " ")
-            )
-            bucket.subtitleConfirmedWords = engineConfirmed
+            let confirmedJoined = confirmedRows.map(\.text).joined(separator: " ")
+            bucket.subtitleConfirmedWords = Self.tokenizeWords(confirmedJoined)
             bucket.subtitleVolatileWords = Self.tokenizeWords(partial)
 
             let oldWords = bucket.confirmedSegments
@@ -230,13 +226,6 @@ public final class TranscriptStore: ObservableObject {
         }
     }
 
-    private static func tokenizeWords(_ value: String) -> [String] {
-        value
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .split(whereSeparator: \.isWhitespace)
-            .map(String.init)
-    }
-
     private func stabilizedWords(old: [String], new: [String], rewriteLookbackWords: Int) -> [String] {
         guard !old.isEmpty else { return new }
         let lookback = max(1, rewriteLookbackWords)
@@ -247,5 +236,12 @@ public final class TranscriptStore: ObservableObject {
             return frozenPrefix
         }
         return frozenPrefix + suffixFromNew
+    }
+
+    private static func tokenizeWords(_ value: String) -> [String] {
+        value
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .split(whereSeparator: \.isWhitespace)
+            .map(String.init)
     }
 }

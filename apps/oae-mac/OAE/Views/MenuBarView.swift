@@ -49,7 +49,7 @@ public struct MenuBarView: View {
                       systemImage: subtitlesVisible ? "xmark.circle.fill" : "captions.bubble.fill")
             }
             .buttonStyle(.plain)
-            .help("Shows the island only while Dictate is active; other modes do not feed the overlay.")
+            .help("Overlay uses stable two-line captions from Dictate only; capture/file transcripts are not shown here.")
 
             Picker("Layout", selection: $subtitlePresentationRaw) {
                 ForEach(SubtitlePresentationMode.allCases) { mode in

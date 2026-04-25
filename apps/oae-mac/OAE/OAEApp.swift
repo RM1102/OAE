@@ -928,36 +928,30 @@ public struct SubtitleOverlayView: View {
 
     @AppStorage("oae.subtitle.fontSize") private var fontSize: Double = 35
     @AppStorage("oae.subtitle.backgroundOpacity") private var bgOpacity: Double = 0.62
-    /// Segmented control: 3 = 12 words, 5 = 15 words, 7 = 18 words (fixed island capacity).
+    /// Segmented control: 3 = 12 words, 5 = 15 words, 7 = 18 words (stable visible window).
     @AppStorage("oae.subtitle.chunkWords") private var chunkWords: Int = 5
     @AppStorage(SettingsKey.subtitlePresentation) private var presentationRaw: String = SubtitlePresentationMode.floating.rawValue
     @AppStorage(SettingsKey.subtitleIslandMonospace) private var subtitleIslandMonospace: Bool = false
-    @StateObject private var subtitleCoalescer = SubtitleFeedCoalescer()
+    @AppStorage(SettingsKey.subtitleCaptionStyle) private var subtitleCaptionStyleRaw: String = SubtitleCaptionStyle.classicStable.rawValue
     @State private var controlsVisible: Bool = false
+    @StateObject private var cadence = SubtitleLineCadenceController()
 
     private var presentation: SubtitlePresentationMode {
         SubtitlePresentationMode(rawValue: presentationRaw) ?? .floating
     }
 
-    /// Island shows exactly this many word slots (leading slots may be empty until filled).
-    private var islandWordCapacity: Int {
+    private var captionStyle: SubtitleCaptionStyle {
+        SubtitleCaptionStyle(rawValue: subtitleCaptionStyleRaw) ?? .classicStable
+    }
+
+    /// Maximum words held in the two-line visible window.
+    private var visibleWordWindow: Int {
         switch chunkWords {
         case 3: return 12
         case 5: return 15
         case 7: return 18
         default: return 15
         }
-    }
-
-    private var islandSlots: [String] { subtitleCoalescer.displayedSlots }
-
-    private var cellWidth: CGFloat {
-        let w = fontSize * 0.52
-        return CGFloat(max(28, min(120, w)))
-    }
-
-    private var islandRowMinHeight: CGFloat {
-        CGFloat(max(44, fontSize * 1.28))
     }
 
     public init() {}
@@ -987,29 +981,25 @@ public struct SubtitleOverlayView: View {
             }
 
             Group {
-                let slots = islandSlots
-                let showPlaceholder = transcript.source != .dictate
-                    || slots.isEmpty
-                    || slots.allSatisfy { $0.trimmingCharacters(in: .whitespaces).isEmpty }
-                if showPlaceholder {
-                    Text(placeholderCopy)
-                        .font(placeholderFont)
+                if transcript.source != .dictate || (cadence.snapshot.line1.isEmpty && cadence.snapshot.line2.isEmpty) {
+                    Text("Your live subtitles will appear here...")
+                        .font(captionFont(weight: .semibold))
                         .foregroundStyle(.white.opacity(0.55))
                         .multilineTextAlignment(.center)
                 } else {
-                    VStack(spacing: 6) {
-                        islandSlotRow(Array(slots.prefix(min(8, slots.count))), baseIndex: 0)
-                            .frame(minHeight: islandRowMinHeight)
-                        if slots.count > 8 {
-                            islandSlotRow(Array(slots.dropFirst(8)), baseIndex: 8)
-                                .frame(minHeight: islandRowMinHeight)
+                    VStack(alignment: .leading, spacing: 6) {
+                        lineView(tokens: cadence.snapshot.line1)
+                            .frame(minHeight: lineMinHeight, alignment: .leading)
+                        if !cadence.snapshot.line2.isEmpty {
+                            lineView(tokens: cadence.snapshot.line2)
+                                .frame(minHeight: lineMinHeight, alignment: .leading)
                         }
                     }
-                    .frame(maxWidth: .infinity)
-                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
             .shadow(color: .black.opacity(0.95), radius: 3, x: 0, y: 1)
+            .animation(.easeInOut(duration: 0.11), value: cadence.snapshot)
 
             if controlsVisible {
                 HStack(spacing: 14) {
@@ -1032,8 +1022,8 @@ public struct SubtitleOverlayView: View {
                     }
                     .pickerStyle(.segmented)
                     .frame(width: 118)
-                    .accessibilityLabel("Subtitle word capacity")
-                    .help("Fixed number of word cells (12 / 15 / 18). Confirmed speech fills left cells; live pending text fills right cells. Cell width is fixed so rewrites do not reflow the strip.")
+                    .accessibilityLabel("Subtitle visible word window")
+                    .help("Maximum words held in the 2-line subtitle window (12 / 15 / 18). Confirmed words stay anchored while volatile rewrites are confined to the live edge.")
                 }
                 .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
@@ -1057,65 +1047,55 @@ public struct SubtitleOverlayView: View {
         }
         .padding(10)
         .onAppear {
-            if overlay.isVisible {
-                subtitleCoalescer.start(transcript: transcript, capacity: islandWordCapacity)
+            if captionStyle == .classicStable {
+                cadence.start(transcript: transcript, maxVisibleWords: visibleWordWindow)
             }
         }
         .onDisappear {
-            subtitleCoalescer.stop()
+            cadence.stop()
         }
+        .onChange(of: transcript.subtitleConfirmedWords) { _, _ in cadence.capturePending() }
+        .onChange(of: transcript.subtitleVolatileWords) { _, _ in cadence.capturePending() }
+        .onChange(of: transcript.subtitleFeedDictateSessionID) { _, _ in cadence.capturePending() }
+        .onChange(of: transcript.source) { _, _ in cadence.capturePending() }
         .onChange(of: overlay.isVisible) { _, visible in
             if visible {
-                subtitleCoalescer.start(transcript: transcript, capacity: islandWordCapacity)
+                cadence.start(transcript: transcript, maxVisibleWords: visibleWordWindow)
+                cadence.capturePending()
             } else {
-                subtitleCoalescer.stop()
+                cadence.stop()
             }
         }
         .onChange(of: chunkWords) { _, _ in
-            subtitleCoalescer.resetCompositor(capacity: islandWordCapacity)
+            cadence.updateWindowSize(visibleWordWindow)
         }
-    }
-
-    private var placeholderCopy: String {
-        if transcript.source != .dictate {
-            return "Open Dictate to show live subtitles here…"
-        }
-        return "Your live subtitles will appear here…"
-    }
-
-    private var placeholderFont: Font {
-        if subtitleIslandMonospace {
-            return .system(size: fontSize, weight: .semibold, design: .monospaced)
-        }
-        return .system(size: fontSize, weight: .semibold, design: .rounded)
     }
 
     @ViewBuilder
-    private func islandSlotRow(_ words: [String], baseIndex: Int) -> some View {
-        HStack(spacing: 5) {
-            ForEach(words.indices.map { baseIndex + $0 }, id: \.self) { globalIdx in
-                let local = globalIdx - baseIndex
-                let word = words[local]
-                let isEmpty = word.trimmingCharacters(in: .whitespaces).isEmpty
-                Text(isEmpty ? "\u{00a0}" : word)
-                    .font(islandWordFont)
-                    .foregroundStyle(isEmpty ? .clear : .white)
+    private func lineView(tokens: [SubtitleLineSnapshot.StyledToken]) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 4) {
+            ForEach(Array(tokens.enumerated()), id: \.offset) { pair in
+                let token = pair.element
+                Text(token.value)
+                    .font(captionFont(weight: .semibold))
+                    .foregroundStyle(token.isVolatile ? .white.opacity(0.88) : .white)
                     .lineLimit(1)
-                    .truncationMode(.tail)
-                    .multilineTextAlignment(.center)
-                    .frame(width: cellWidth, alignment: .center)
-                    .clipped()
+                    .fixedSize()
                     .contentTransition(.opacity)
-                    .animation(.easeInOut(duration: 0.12), value: word)
             }
+            Spacer(minLength: 0)
         }
-        .frame(maxWidth: .infinity)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private var islandWordFont: Font {
+    private var lineMinHeight: CGFloat {
+        max(26, CGFloat(fontSize * 1.15))
+    }
+
+    private func captionFont(weight: Font.Weight) -> Font {
         if subtitleIslandMonospace {
-            return .system(size: fontSize, weight: .semibold, design: .monospaced)
+            return .system(size: fontSize, weight: weight, design: .monospaced)
         }
-        return .system(size: fontSize, weight: .semibold, design: .rounded)
+        return .system(size: fontSize, weight: weight, design: .rounded)
     }
 }

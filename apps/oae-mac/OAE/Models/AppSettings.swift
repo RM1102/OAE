@@ -76,7 +76,9 @@ public enum SettingsKey {
     public static let shippingOllamaReady = "oae.shipping.ollamaReady"
     /// Live subtitle overlay layout: `floating` (draggable island) or `notchStrip` (top-center strip).
     public static let subtitlePresentation = "oae.subtitle.presentation"
-    /// Subtitle island uses monospaced digits/glyphs for maximum width stability (default off).
+    /// Live subtitle caption style.
+    public static let subtitleCaptionStyle = "oae.subtitle.captionStyle"
+    /// Toggle monospaced subtitle metrics for maximum visual stability.
     public static let subtitleIslandMonospace = "oae.subtitle.islandMonospace"
 }
 
@@ -89,6 +91,16 @@ public enum SubtitlePresentationMode: String, CaseIterable, Sendable, Identifiab
         switch self {
         case .floating: return "Floating island"
         case .notchStrip: return "Top notch strip"
+        }
+    }
+}
+
+public enum SubtitleCaptionStyle: String, CaseIterable, Sendable, Identifiable {
+    case classicStable
+    public var id: String { rawValue }
+    public var displayName: String {
+        switch self {
+        case .classicStable: return "Classic stable (2-line)"
         }
     }
 }

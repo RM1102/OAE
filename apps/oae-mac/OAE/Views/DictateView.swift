@@ -181,7 +181,7 @@ public struct DictateView: View {
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
-            .help("How many recent words Whisper is allowed to revise in the merged **saved** transcript when it corrects itself. The subtitle island uses a separate engine confirmed vs volatile feed, so this lookback mainly affects the Dictate text pane, not island geometry.")
+            .help("How many recent words Whisper is allowed to revise in the merged saved transcript when it corrects itself. The subtitle island now tracks confirmed/volatile lanes separately and keeps confirmed text visually anchored.")
             Toggle(isOn: $dictateLivePostProcess) {
                 VStack(alignment: .leading, spacing: 0) {
                     Text("Live math (Ollama)")

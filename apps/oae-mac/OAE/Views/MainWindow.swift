@@ -207,12 +207,12 @@ public struct MainWindow: View {
             .frame(maxWidth: 300)
             .labelsHidden()
             .accessibilityLabel("Subtitle layout")
-            .help("Floating island: drag anywhere. Top notch strip: pinned under the menu bar. Live words appear only while Dictate is the active tab.")
+            .help("Floating island: drag anywhere. Top notch strip: pinned under the menu bar. Live subtitles render in stable 1-2 lines and only while Dictate is active.")
             if subtitlesVisible {
                 Toggle("Safe", isOn: $subtitleSafeMode)
                     .toggleStyle(.switch)
                     .controlSize(.small)
-                    .help("Safe mode uses a more conservative subtitle panel interaction model.")
+                    .help("Safe mode uses a conservative subtitle panel interaction model.")
                 if !subtitleSafeMode, subtitlePresentationMode != .notchStrip {
                     Button {
                         SubtitleOverlayController.shared.togglePositionLock()

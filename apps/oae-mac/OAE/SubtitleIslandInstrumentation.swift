@@ -1,66 +1,75 @@
 import Foundation
 
-/// Opt-in stats for subtitle compositor / coalescer (`defaults write computer.oae.OAE oae.subtitle.debugStats -bool YES`).
 enum SubtitleDebugDefaults {
     static let debugStatsKey = "oae.subtitle.debugStats"
 }
 
 #if SUBTITLE_ISLAND_INSTRUMENTATION
-private let instrumentationCompileTimeEnabled = true
+private let subtitleInstrumentationCompileEnabled = true
 #else
-private let instrumentationCompileTimeEnabled = false
+private let subtitleInstrumentationCompileEnabled = false
 #endif
 
-/// Lightweight counters and coalescer Hz; logs throttled when compile flag or UserDefaults enables stats.
 final class SubtitleIslandInstrumentation: @unchecked Sendable {
-    private let lock = NSLock()
-    private var counts: [SubtitleIslandCompositor.Transition: Int] = [:]
-    private var flushCount: Int = 0
-    private var hzEMA: Double = 0
-    private var lastLog: CFAbsoluteTime = 0
-    private var lastFlushTime: CFAbsoluteTime?
-
     static let shared = SubtitleIslandInstrumentation()
 
+    private let lock = NSLock()
+    private var transitionCounts: [SubtitleLineCompositor.Transition: Int] = [:]
+    private var lineBreakChurnCount: Int = 0
+    private var flushCount: Int = 0
+    private var hzEMA: Double = 0
+    private var lastFlushAt: CFAbsoluteTime?
+    private var lastLogAt: CFAbsoluteTime = 0
+
     var isEnabled: Bool {
-        if instrumentationCompileTimeEnabled { return true }
+        if subtitleInstrumentationCompileEnabled { return true }
         return UserDefaults.standard.bool(forKey: SubtitleDebugDefaults.debugStatsKey)
     }
 
-    func record(_ t: SubtitleIslandCompositor.Transition) {
+    func record(snapshot: SubtitleLineSnapshot) {
         guard isEnabled else { return }
         lock.lock()
-        counts[t, default: 0] += 1
+        transitionCounts[snapshot.transition, default: 0] += 1
+        if snapshot.lineBreakChurned { lineBreakChurnCount += 1 }
         lock.unlock()
     }
 
-    func recordFlushForHz() {
+    func recordFlush() {
         guard isEnabled else { return }
         let now = CFAbsoluteTimeGetCurrent()
         lock.lock()
         flushCount += 1
-        if let last = lastFlushTime {
-            let dt = now - last
+        if let previous = lastFlushAt {
+            let dt = now - previous
             if dt > 0 {
-                let inst = 1.0 / dt
-                hzEMA = hzEMA == 0 ? inst : (hzEMA * 0.85 + inst * 0.15)
+                let hz = 1.0 / dt
+                hzEMA = hzEMA == 0 ? hz : (hzEMA * 0.85 + hz * 0.15)
             }
         }
-        lastFlushTime = now
+        lastFlushAt = now
 
-        let shouldLog = now - lastLog > 2.0
+        let shouldLog = now - lastLogAt > 2.0
         if shouldLog {
-            lastLog = now
-            let snap = counts
-            let hz = hzEMA
+            lastLogAt = now
+            let transitions = transitionCounts
+            let churn = lineBreakChurnCount
             let flushes = flushCount
-            counts.removeAll(keepingCapacity: true)
+            let ema = hzEMA
+            transitionCounts.removeAll(keepingCapacity: true)
+            lineBreakChurnCount = 0
             flushCount = 0
             lock.unlock()
-            let parts = SubtitleIslandCompositor.Transition.allCases.map { "\($0.rawValue)=\(snap[$0] ?? 0)" }
-            NSLog("[OAE.SubtitleIsland] transitions \(parts.joined(separator: " ")) uiHzEMA=%.1f flushes=%d", hz, flushes)
-        } else {
-            lock.unlock()
+
+            let parts = SubtitleLineCompositor.Transition.allCases.map { "\($0.rawValue)=\(transitions[$0] ?? 0)" }
+            NSLog(
+                "[OAE.Subtitles] transitions %@ lineBreakChurn=%d uiHzEMA=%.1f flushes=%d",
+                parts.joined(separator: " "),
+                churn,
+                ema,
+                flushes
+            )
+            return
         }
+        lock.unlock()
     }
 }

@@ -1,55 +1,68 @@
-# Subtitle island (macOS)
+# Subtitle Island (Classic Stable 2-line)
 
-Live subtitles use a **split feed** and **fixed-width cells** so WhisperKit tail rewrites do not reflow earlier visible words.
+This document describes the current live subtitle model for the macOS floating island.
 
-## Data model
+## Goals
 
-| Lane | Source | Updated when |
-|------|--------|----------------|
-| **Confirmed** | Token list derived from WhisperKit `confirmedSegments` (same rows `DictateView` passes into `TranscriptStore.applyDictateUpdate`) | When the streaming engine commits segments |
-| **Volatile** | Token list from the dictate `partial` string (unconfirmed segments + current hypothesis) | Every partial refresh |
+- Keep subtitles readable under streaming ASR rewrites.
+- Keep confirmed text visually anchored when only the tail rewrites.
+- Avoid high-frequency micro-jitter from rapid interim updates.
+- Show subtitle feed only during Dictate.
 
-The main Dictate transcript pane still uses merged + `stabilizedWords` confirmed text inside `TranscriptStore`; the island **does not** drive off `fullText` for layout.
+## Feed model
 
-Published on `TranscriptStore`:
+`TranscriptStore` publishes a Dictate-specific subtitle feed:
 
-- `subtitleConfirmedWords`, `subtitleVolatileWords`
-- `subtitleFeedDictateSessionID` — must match the current dictate session; stale callbacks are ignored the same way as `applyDictateUpdate(sessionID:)`.
+- `subtitleConfirmedWords`: words derived from streaming confirmed segments.
+- `subtitleVolatileWords`: words derived from unconfirmed + current partial text.
+- `subtitleFeedDictateSessionID`: session guard used to ignore stale updates.
 
-When the app activates a non-dictate source (`activate(.capture)` / `.file`), subtitle word arrays are cleared so the overlay never shows another mode’s bucket.
+The overlay does not layout from `fullText`.
 
 ## Compositor
 
-`SubtitleIslandCompositor` maps `(C, V)` into exactly **N** cells (`N` ∈ {12, 15, 18} via Settings / overlay picker):
+`SubtitleLineCompositor` consumes `(confirmed, volatile)` and produces a two-line snapshot:
 
-- Reserve `volatileSlotCount = min(N, max(1, |V|))` when `V` is non-empty, else `0`.
-- Remaining cells show the **right tail** of `C`; volatile cells show the **right tail** of `V`.
-- Left confirmed cells stay stable when only `V` changes (tail revision).
+- `line1` / `line2` token arrays with per-token volatile markers.
+- `boundaryIndex` separating confirmed vs volatile tokens in the visible window.
+- transition classification:
+  - `bootstrap`
+  - `append`
+  - `tailRevision`
+  - `confirmationShift`
+  - `reset`
 
-**Transition labels** (for debug stats): `bootstrap`, `append`, `tailRevision`, `confirmationShift`, `reset`.
+The compositor keeps line-break hysteresis so line wrapping does not oscillate on every tick.
 
-## Coalescing
+## Cadence and hysteresis
 
-`SubtitleFeedCoalescer` samples the store on a **60 Hz** main-thread timer so ASR bursts do not hammer SwiftUI. The coalescer **starts** when the overlay becomes visible and **stops** on hide / `onDisappear`.
+`SubtitleLineCadenceController` controls UI updates:
+
+- max commit cadence: ~60 Hz.
+- debounce window: ~70 ms.
+- extra hysteresis for tiny volatile tail churn: if only the final token flips inside debounce window, delay one more tick.
+
+This reduces visual flutter while preserving responsiveness.
 
 ## Settings
 
-| Key | Meaning |
-|-----|---------|
-| `oae.subtitle.presentation` | `floating` or `notchStrip` |
-| `oae.subtitle.chunkWords` | Segmented value 3 / 5 / 7 → island capacities 12 / 15 / 18 |
-| `oae.subtitle.fontSize` | Cell text size |
-| `oae.subtitle.backgroundOpacity` | Island fill alpha |
-| `oae.subtitle.islandMonospace` | **Subtitle island: stable metrics (monospace)** — default off |
+- `oae.subtitle.presentation`: floating / top notch strip.
+- `oae.subtitle.captionStyle`: currently `classicStable`.
+- `oae.subtitle.islandMonospace`: optional stable metrics mode (default off).
+- `oae.subtitle.chunkWords`: controls visible word window (12/15/18).
 
-## Debug instrumentation
+## Instrumentation
 
-- **Compile-time (Debug builds):** `SUBTITLE_ISLAND_INSTRUMENTATION` is set in `apps/oae-mac/project.yml` so extra tooling can be `#if`’d.
-- **Runtime (any build):** `defaults write computer.oae.OAE oae.subtitle.debugStats -bool YES` then watch Console for `[OAE.SubtitleIsland]` — transition counters and UI flush Hz (EMA).
+Debug logs are gated by:
 
-## Manual QA
+- compile flag: `SUBTITLE_ISLAND_INSTRUMENTATION` (Debug config)
+- runtime key: `oae.subtitle.debugStats`
 
-1. Long Dictate session with aggressive rewrites: left (confirmed) cells should not slide when the tail rewrites.
-2. Continuous speech: FIFO-style advance at the live edge; boundary shifts when the engine confirms more text.
-3. Toggle subtitles off/on: no crash, no stale text from a previous session.
-4. Switch to Capture/File while subtitles are open: placeholder only — no foreign transcript.
+When enabled, logs include transition counts, line-break churn, and UI update rate (EMA).
+
+## Manual acceptance checklist
+
+1. Long dictation with aggressive rewrites: confirmed words remain visually stable.
+2. Continuous speech: FIFO progression without chaotic line jumping.
+3. Overlay hide/show repeatedly: no stale text or crashes.
+4. Switch away from Dictate: overlay shows placeholder/blank and does not leak Capture/File text.

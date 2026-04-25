@@ -21,12 +21,12 @@
 		4226A0A9576FD18D71FEE155 /* PostProcessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19810DE1BB44B43D656EFE46 /* PostProcessor.swift */; };
 		4289E2C55F5490E5D8988997 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08355BF16D1063308019F33D /* SettingsView.swift */; };
 		4C2F85CF49F4F7F2EE658E44 /* LiveStreamer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13F46C70A6CCCDEC13E6990D /* LiveStreamer.swift */; };
+		567B571395C98FD4FC124851 /* SubtitleLineCadenceController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91913884961514780E46D7A6 /* SubtitleLineCadenceController.swift */; };
 		58909DF037A9065967759C39 /* TranscriptStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34D0D0C896BD1ACCA2C5181F /* TranscriptStore.swift */; };
 		5D05B5A04D190411DB6ED7EE /* FileImportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21102C352CF2E6B7FC40F22A /* FileImportService.swift */; };
 		5D3F1BA704ECDFD6D0229251 /* WhisperKit in Frameworks */ = {isa = PBXBuildFile; productRef = 4AC4278117AF8A219D708992 /* WhisperKit */; };
 		5FDDE6B378FAF2D94C97C4EC /* DictateLivePostProcessCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 187E86F13E4CF86DCF68D96D /* DictateLivePostProcessCoordinator.swift */; };
 		673DE7E68AC6DFF0AA2080B7 /* CaptureSessionController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F8A6A8D574F3676E461206F /* CaptureSessionController.swift */; };
-		6B7820301989F1249B28E3C8 /* SubtitleFeedCoalescer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A389C6909145E6DB73E026A3 /* SubtitleFeedCoalescer.swift */; };
 		76E42557B6B10EDFF39F411E /* Providers.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA8706CB6D57002CA89D5BA3 /* Providers.swift */; };
 		7BECD753E73DC308AB728688 /* PromptLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED42E94657BFD74F89F0151C /* PromptLibrary.swift */; };
 		85B49C3E159A39C07F7BA7D0 /* Clipboard.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2C8EF069AF57A8436F94B15 /* Clipboard.swift */; };
@@ -38,12 +38,12 @@
 		D5B39C85E25C03580B2C53B3 /* PostProcessView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2003C9E0CA7F73D1C573880F /* PostProcessView.swift */; };
 		D67C2C130C3DCEA20A3963FF /* ProviderPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15D11E355219ED577E3D19A7 /* ProviderPickerView.swift */; };
 		DB0372B82B25D478930FA51C /* TranscriptionEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9E667D97EC3DC5F4D23C756 /* TranscriptionEngine.swift */; };
+		DC1FAF69A3590C4EA7A45B06 /* SubtitleLineCompositor.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7ACAA644DA7E7DB3C380D82 /* SubtitleLineCompositor.swift */; };
 		DD7FB92C1F9A9A1D862DC893 /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 458A964466A4D3DF57311217 /* AppSettings.swift */; };
 		DD84FDF2FFC54DFA0E279E77 /* OAEApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DA69A36A9AF83CB00CBF3A7 /* OAEApp.swift */; };
 		DFFF4FDDEBD2C3DF22AB6EC7 /* FileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 917A0B190339EA1BAF0EF2F9 /* FileView.swift */; };
 		E0ED821427F67F6C6FC99F19 /* WaveformView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C0CB4F7D62501202A4CDD27 /* WaveformView.swift */; };
 		E14C766FDB0E8FCF350149ED /* StatusPill.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FADA4063DED071EE8099DD1 /* StatusPill.swift */; };
-		E42266171DAFEA256AA0E984 /* SubtitleIslandCompositor.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAAD30633E6FA15C8EFC4048 /* SubtitleIslandCompositor.swift */; };
 		E998AB5655ABC89C447F8167 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 7ADF96DDC5DF46426B786505 /* Assets.xcassets */; };
 /* End PBXBuildFile section */
 
@@ -74,11 +74,11 @@
 		7F8A6A8D574F3676E461206F /* CaptureSessionController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureSessionController.swift; sourceTree = "<group>"; };
 		8C0CB4F7D62501202A4CDD27 /* WaveformView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WaveformView.swift; sourceTree = "<group>"; };
 		917A0B190339EA1BAF0EF2F9 /* FileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileView.swift; sourceTree = "<group>"; };
+		91913884961514780E46D7A6 /* SubtitleLineCadenceController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubtitleLineCadenceController.swift; sourceTree = "<group>"; };
 		9DA69A36A9AF83CB00CBF3A7 /* OAEApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OAEApp.swift; sourceTree = "<group>"; };
-		A389C6909145E6DB73E026A3 /* SubtitleFeedCoalescer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubtitleFeedCoalescer.swift; sourceTree = "<group>"; };
-		BAAD30633E6FA15C8EFC4048 /* SubtitleIslandCompositor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubtitleIslandCompositor.swift; sourceTree = "<group>"; };
 		BEB00FC18EB4DE0B9980DA22 /* ModelStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelStore.swift; sourceTree = "<group>"; };
 		D357A1FF028BCE69C5EDAE9B /* OAE.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = OAE.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		D7ACAA644DA7E7DB3C380D82 /* SubtitleLineCompositor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubtitleLineCompositor.swift; sourceTree = "<group>"; };
 		DE490428D1C855258476B168 /* KeychainStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainStore.swift; sourceTree = "<group>"; };
 		ED42E94657BFD74F89F0151C /* PromptLibrary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptLibrary.swift; sourceTree = "<group>"; };
 		F2C8EF069AF57A8436F94B15 /* Clipboard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Clipboard.swift; sourceTree = "<group>"; };
@@ -164,9 +164,9 @@
 				5912BF09640BB58FD6853E18 /* Services */,
 				F64D6E86D738A838A85F3431 /* Views */,
 				9DA69A36A9AF83CB00CBF3A7 /* OAEApp.swift */,
-				A389C6909145E6DB73E026A3 /* SubtitleFeedCoalescer.swift */,
-				BAAD30633E6FA15C8EFC4048 /* SubtitleIslandCompositor.swift */,
 				59678639E2035623C224DA4F /* SubtitleIslandInstrumentation.swift */,
+				91913884961514780E46D7A6 /* SubtitleLineCadenceController.swift */,
+				D7ACAA644DA7E7DB3C380D82 /* SubtitleLineCompositor.swift */,
 			);
 			path = OAE;
 			sourceTree = "<group>";
@@ -295,9 +295,9 @@
 				11DF9BF580B6796BE4D783A1 /* Recording.swift in Sources */,
 				4289E2C55F5490E5D8988997 /* SettingsView.swift in Sources */,
 				E14C766FDB0E8FCF350149ED /* StatusPill.swift in Sources */,
-				6B7820301989F1249B28E3C8 /* SubtitleFeedCoalescer.swift in Sources */,
-				E42266171DAFEA256AA0E984 /* SubtitleIslandCompositor.swift in Sources */,
 				2C340791332B7D7F80638CE0 /* SubtitleIslandInstrumentation.swift in Sources */,
+				567B571395C98FD4FC124851 /* SubtitleLineCadenceController.swift in Sources */,
+				DC1FAF69A3590C4EA7A45B06 /* SubtitleLineCompositor.swift in Sources */,
 				0F50069A2988041B1A28FD42 /* TranscriptExporter.swift in Sources */,
 				58909DF037A9065967759C39 /* TranscriptStore.swift in Sources */,
 				A12F2E90B7BECE3A533C8304 /* TranscriptView.swift in Sources */,
