@@ -95,6 +95,7 @@ private struct GeneralTab: View {
             Stepper(value: $rewriteLookbackWords, in: 6...18) {
                 HStack { Text("Rewrite lookback words"); Spacer(); Text("\(rewriteLookbackWords)") }
             }
+            .help("When Whisper revises recent words, OAE can rewrite up to this many trailing words in the saved transcript so corrections stay smooth. It does not clip subtitles anymore; it only affects how merged confirmed text is stabilized.")
             Picker("Live subtitle layout", selection: $subtitlePresentationRaw) {
                 ForEach(SubtitlePresentationMode.allCases) { mode in
                     Text(mode.displayName).tag(mode.rawValue)

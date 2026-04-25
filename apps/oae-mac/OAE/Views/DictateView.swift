@@ -181,6 +181,7 @@ public struct DictateView: View {
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
+            .help("How many recent words Whisper is allowed to revise in the merged transcript when it corrects itself. Higher = smoother fixes, slightly more churn in confirmed text. Live subtitles use the full line; this setting does not hide words on the island.")
             Toggle(isOn: $dictateLivePostProcess) {
                 VStack(alignment: .leading, spacing: 0) {
                     Text("Live math (Ollama)")

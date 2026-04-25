@@ -42,5 +42,6 @@ __pycache__/
 # ---- CI / release packaging ----
 .ci-whisper-model/
 .derivedData/
+.derivedData-dmg/
 artifacts/
 dmg-staging-*/

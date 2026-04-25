@@ -930,7 +930,6 @@ public struct SubtitleOverlayView: View {
     @AppStorage("oae.subtitle.backgroundOpacity") private var bgOpacity: Double = 0.62
     @AppStorage("oae.subtitle.chunkWords") private var chunkWords: Int = 7
     @AppStorage("oae.subtitle.safeMode") private var safeMode: Bool = true
-    @AppStorage(SettingsKey.dictateRewriteLookbackWords) private var rewriteLookbackWords: Int = 10
     @AppStorage(SettingsKey.subtitlePresentation) private var presentationRaw: String = SubtitlePresentationMode.floating.rawValue
     @State private var controlsVisible: Bool = false
 
@@ -996,6 +995,8 @@ public struct SubtitleOverlayView: View {
                     }
                     .pickerStyle(.segmented)
                     .frame(width: 110)
+                    .accessibilityLabel("Subtitle history length")
+                    .help("Roughly how many words of recent speech stay visible before older words scroll off the island (larger = more context on screen).")
                 }
                 .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
@@ -1021,17 +1022,18 @@ public struct SubtitleOverlayView: View {
     }
 
     private var subtitleText: String {
-        let confirmedWords = tokenize(transcript.confirmedText)
-        let partialWords = tokenize(transcript.partialText)
-        let size = max(3, chunkWords)
-        let displayWords = stabilizedDisplayWords(confirmedWords: confirmedWords, partialWords: partialWords)
-        guard !displayWords.isEmpty else {
+        // Match the main Dictate transcript: confirmed segments + live partial (`TranscriptStore.fullText`).
+        // Previously we merged confirmed + partial incorrectly using `partialWords.prefix(...)`, which kept
+        // only the *first* few words of a long partial (e.g. "I don't see") and hid the live tail.
+        let base = transcript.fullText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !base.isEmpty else {
             return "Your live subtitles will appear here..."
         }
-
+        let words = tokenize(base)
+        let size = max(3, chunkWords)
         // Keep a larger trailing window so the island naturally renders 2-3 lines.
         let windowWordCount = max(12, size * 3)
-        let window = Array(displayWords.suffix(windowWordCount))
+        let window = Array(words.suffix(windowWordCount))
         let text = window.joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines)
         return text.isEmpty ? "Your live subtitles will appear here..." : text
     }
@@ -1040,19 +1042,5 @@ public struct SubtitleOverlayView: View {
         value
             .split(whereSeparator: \.isWhitespace)
             .map(String.init)
-    }
-
-    private func stabilizedDisplayWords(confirmedWords: [String], partialWords: [String]) -> [String] {
-        if confirmedWords.isEmpty { return partialWords }
-        let lookback = max(1, rewriteLookbackWords)
-        let immutableCount = max(0, confirmedWords.count - lookback)
-        let frozenPrefix = Array(confirmedWords.prefix(immutableCount))
-        let mutableSuffix = Array(confirmedWords.suffix(min(lookback, confirmedWords.count)))
-        var merged = frozenPrefix + mutableSuffix
-        if !partialWords.isEmpty {
-            let partialTail = Array(partialWords.prefix(max(2, lookback / 2)))
-            merged.append(contentsOf: partialTail)
-        }
-        return merged
     }
 }
