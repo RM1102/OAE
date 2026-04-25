@@ -930,11 +930,10 @@ public struct SubtitleOverlayView: View {
     @AppStorage("oae.subtitle.backgroundOpacity") private var bgOpacity: Double = 0.62
     /// Segmented control: 3 = 12 words, 5 = 15 words, 7 = 18 words (fixed island capacity).
     @AppStorage("oae.subtitle.chunkWords") private var chunkWords: Int = 5
-    @AppStorage("oae.subtitle.safeMode") private var safeMode: Bool = true
     @AppStorage(SettingsKey.subtitlePresentation) private var presentationRaw: String = SubtitlePresentationMode.floating.rawValue
+    @AppStorage(SettingsKey.subtitleIslandMonospace) private var subtitleIslandMonospace: Bool = false
+    @StateObject private var subtitleCoalescer = SubtitleFeedCoalescer()
     @State private var controlsVisible: Bool = false
-    @State private var ring = SubtitleIslandRingViewport(capacity: 15)
-    @State private var islandSlots: [String] = []
 
     private var presentation: SubtitlePresentationMode {
         SubtitlePresentationMode(rawValue: presentationRaw) ?? .floating
@@ -948,6 +947,17 @@ public struct SubtitleOverlayView: View {
         case 7: return 18
         default: return 15
         }
+    }
+
+    private var islandSlots: [String] { subtitleCoalescer.displayedSlots }
+
+    private var cellWidth: CGFloat {
+        let w = fontSize * 0.52
+        return CGFloat(max(28, min(120, w)))
+    }
+
+    private var islandRowMinHeight: CGFloat {
+        CGFloat(max(44, fontSize * 1.28))
     }
 
     public init() {}
@@ -976,26 +986,29 @@ public struct SubtitleOverlayView: View {
                 .transition(.opacity.combined(with: .move(edge: .top)))
             }
 
-            // Keep island display-only (Handy-style) to avoid gesture callback crashes.
-            // Fixed-slot ring + per-word layout reduces reflow when Whisper revises the tail.
             Group {
-                if islandSlots.isEmpty || islandSlots.allSatisfy({ $0.isEmpty }) {
-                    Text("Your live subtitles will appear here...")
-                        .font(.system(size: fontSize, weight: .semibold, design: .rounded))
+                let slots = islandSlots
+                let showPlaceholder = transcript.source != .dictate
+                    || slots.isEmpty
+                    || slots.allSatisfy { $0.trimmingCharacters(in: .whitespaces).isEmpty }
+                if showPlaceholder {
+                    Text(placeholderCopy)
+                        .font(placeholderFont)
                         .foregroundStyle(.white.opacity(0.55))
                         .multilineTextAlignment(.center)
                 } else {
                     VStack(spacing: 6) {
-                        islandSlotRow(Array(islandSlots.prefix(min(8, islandSlots.count))), baseIndex: 0)
-                        if islandSlots.count > 8 {
-                            islandSlotRow(Array(islandSlots.dropFirst(8)), baseIndex: 8)
+                        islandSlotRow(Array(slots.prefix(min(8, slots.count))), baseIndex: 0)
+                            .frame(minHeight: islandRowMinHeight)
+                        if slots.count > 8 {
+                            islandSlotRow(Array(slots.dropFirst(8)), baseIndex: 8)
+                                .frame(minHeight: islandRowMinHeight)
                         }
                     }
                     .frame(maxWidth: .infinity)
                     .multilineTextAlignment(.center)
                 }
             }
-            .minimumScaleFactor(0.72)
             .shadow(color: .black.opacity(0.95), radius: 3, x: 0, y: 1)
 
             if controlsVisible {
@@ -1020,7 +1033,7 @@ public struct SubtitleOverlayView: View {
                     .pickerStyle(.segmented)
                     .frame(width: 118)
                     .accessibilityLabel("Subtitle word capacity")
-                    .help("Maximum words on the island at once (12 / 15 / 18). Oldest word drops when you add a new one; rewrites patch only the unstable prefix so the tail does not jump as much.")
+                    .help("Fixed number of word cells (12 / 15 / 18). Confirmed speech fills left cells; live pending text fills right cells. Cell width is fixed so rewrites do not reflow the strip.")
                 }
                 .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
@@ -1044,52 +1057,65 @@ public struct SubtitleOverlayView: View {
         }
         .padding(10)
         .onAppear {
-            ring = SubtitleIslandRingViewport(capacity: islandWordCapacity)
-            syncIslandSlots()
+            if overlay.isVisible {
+                subtitleCoalescer.start(transcript: transcript, capacity: islandWordCapacity)
+            }
         }
-        .onChange(of: transcript.fullText) { _, _ in syncIslandSlots() }
-        .onChange(of: transcript.confirmedSegments.count) { _, _ in syncIslandSlots() }
+        .onDisappear {
+            subtitleCoalescer.stop()
+        }
+        .onChange(of: overlay.isVisible) { _, visible in
+            if visible {
+                subtitleCoalescer.start(transcript: transcript, capacity: islandWordCapacity)
+            } else {
+                subtitleCoalescer.stop()
+            }
+        }
         .onChange(of: chunkWords) { _, _ in
-            ring = SubtitleIslandRingViewport(capacity: islandWordCapacity)
-            syncIslandSlots()
+            subtitleCoalescer.resetCompositor(capacity: islandWordCapacity)
         }
+    }
+
+    private var placeholderCopy: String {
+        if transcript.source != .dictate {
+            return "Open Dictate to show live subtitles here…"
+        }
+        return "Your live subtitles will appear here…"
+    }
+
+    private var placeholderFont: Font {
+        if subtitleIslandMonospace {
+            return .system(size: fontSize, weight: .semibold, design: .monospaced)
+        }
+        return .system(size: fontSize, weight: .semibold, design: .rounded)
     }
 
     @ViewBuilder
     private func islandSlotRow(_ words: [String], baseIndex: Int) -> some View {
-        let minCell = max(22, fontSize * 0.4)
         HStack(spacing: 5) {
             ForEach(words.indices.map { baseIndex + $0 }, id: \.self) { globalIdx in
                 let local = globalIdx - baseIndex
                 let word = words[local]
                 let isEmpty = word.trimmingCharacters(in: .whitespaces).isEmpty
                 Text(isEmpty ? "\u{00a0}" : word)
-                    .font(.system(size: fontSize, weight: .semibold, design: .rounded))
+                    .font(islandWordFont)
                     .foregroundStyle(isEmpty ? .clear : .white)
                     .lineLimit(1)
-                    .minimumScaleFactor(0.72)
-                    .frame(minWidth: isEmpty ? 3 : minCell)
+                    .truncationMode(.tail)
+                    .multilineTextAlignment(.center)
+                    .frame(width: cellWidth, alignment: .center)
+                    .clipped()
+                    .contentTransition(.opacity)
+                    .animation(.easeInOut(duration: 0.12), value: word)
             }
         }
         .frame(maxWidth: .infinity)
     }
 
-    private func syncIslandSlots() {
-        let base = transcript.fullText.trimmingCharacters(in: .whitespacesAndNewlines)
-        if base.isEmpty {
-            ring.reset()
-            islandSlots = []
-            return
+    private var islandWordFont: Font {
+        if subtitleIslandMonospace {
+            return .system(size: fontSize, weight: .semibold, design: .monospaced)
         }
-        let words = tokenize(base)
-        var r = ring
-        islandSlots = r.apply(allWords: words)
-        ring = r
-    }
-
-    private func tokenize(_ value: String) -> [String] {
-        value
-            .split(whereSeparator: \.isWhitespace)
-            .map(String.init)
+        return .system(size: fontSize, weight: .semibold, design: .rounded)
     }
 }

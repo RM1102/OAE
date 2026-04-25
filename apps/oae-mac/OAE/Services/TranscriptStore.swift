@@ -19,6 +19,12 @@ public final class TranscriptStore: ObservableObject {
     /// Latest live study batch from a longer window (Dictate only; inferred — verify on board).
     @Published public private(set) var dictateLiveStudyPreview: String = ""
     @Published public private(set) var dictateLivePostProcessBusy: Bool = false
+    /// Engine-aligned confirmed words for the subtitle island (WhisperKit confirmed segments; not merged `stabilizedWords` text).
+    @Published public private(set) var subtitleConfirmedWords: [String] = []
+    /// Pending / partial lane for the subtitle island (same string as dictate `partial`).
+    @Published public private(set) var subtitleVolatileWords: [String] = []
+    /// Dictate session id for subtitle feed; compositor ignores frames when this does not match.
+    @Published public private(set) var subtitleFeedDictateSessionID: UUID = UUID()
 
     private var dictateLiveBackgroundDepth: Int = 0
 
@@ -29,6 +35,8 @@ public final class TranscriptStore: ObservableObject {
         var postProcessedLatex: String = ""
         var dictateLiveMathPreview: String = ""
         var dictateLiveStudyPreview: String = ""
+        var subtitleConfirmedWords: [String] = []
+        var subtitleVolatileWords: [String] = []
     }
 
     private var buckets: [Recording.Source: SourceBucket] = [
@@ -60,6 +68,11 @@ public final class TranscriptStore: ObservableObject {
         self.source = source
         activeSessionID = sessionIDs[source] ?? UUID()
         loadPublishedState(from: source)
+        if source != .dictate {
+            subtitleConfirmedWords = []
+            subtitleVolatileWords = []
+        }
+        subtitleFeedDictateSessionID = sessionIDs[.dictate] ?? UUID()
     }
 
     public func reset(source: Recording.Source) {
@@ -101,6 +114,12 @@ public final class TranscriptStore: ObservableObject {
     public func applyDictateUpdate(sessionID: UUID, confirmedRows: [TranscriptSegmentRow], partial: String, rewriteLookbackWords: Int = 10) {
         guard sessionID == sessionIDs[.dictate] else { return }
         mutateBucket(for: .dictate) { bucket in
+            let engineConfirmed = Self.tokenizeWords(
+                confirmedRows.map { $0.text.trimmingCharacters(in: .whitespacesAndNewlines) }.joined(separator: " ")
+            )
+            bucket.subtitleConfirmedWords = engineConfirmed
+            bucket.subtitleVolatileWords = Self.tokenizeWords(partial)
+
             let oldWords = bucket.confirmedSegments
                 .flatMap { $0.text.split(whereSeparator: \.isWhitespace).map(String.init) }
             let newWords = confirmedRows
@@ -201,6 +220,21 @@ public final class TranscriptStore: ObservableObject {
         let dictateBucket = buckets[.dictate] ?? SourceBucket()
         dictateLiveMathPreview = dictateBucket.dictateLiveMathPreview
         dictateLiveStudyPreview = dictateBucket.dictateLiveStudyPreview
+        subtitleFeedDictateSessionID = sessionIDs[.dictate] ?? UUID()
+        if source == .dictate {
+            subtitleConfirmedWords = dictateBucket.subtitleConfirmedWords
+            subtitleVolatileWords = dictateBucket.subtitleVolatileWords
+        } else {
+            subtitleConfirmedWords = []
+            subtitleVolatileWords = []
+        }
+    }
+
+    private static func tokenizeWords(_ value: String) -> [String] {
+        value
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .split(whereSeparator: \.isWhitespace)
+            .map(String.init)
     }
 
     private func stabilizedWords(old: [String], new: [String], rewriteLookbackWords: Int) -> [String] {

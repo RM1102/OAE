@@ -81,6 +81,9 @@ targets:
         LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/../Frameworks"
         SWIFT_EMIT_LOC_STRINGS: YES
         COMBINE_HIDPI_IMAGES: YES
+      configs:
+        Debug:
+          SWIFT_ACTIVE_COMPILATION_CONDITIONS: $(inherited) SUBTITLE_ISLAND_INSTRUMENTATION
     dependencies:
       - package: WhisperKit
         product: WhisperKit

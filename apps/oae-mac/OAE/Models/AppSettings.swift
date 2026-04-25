@@ -76,6 +76,8 @@ public enum SettingsKey {
     public static let shippingOllamaReady = "oae.shipping.ollamaReady"
     /// Live subtitle overlay layout: `floating` (draggable island) or `notchStrip` (top-center strip).
     public static let subtitlePresentation = "oae.subtitle.presentation"
+    /// Subtitle island uses monospaced digits/glyphs for maximum width stability (default off).
+    public static let subtitleIslandMonospace = "oae.subtitle.islandMonospace"
 }
 
 /// Where live subtitles are drawn on screen.

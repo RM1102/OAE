@@ -76,6 +76,7 @@ private struct GeneralTab: View {
     @AppStorage(SettingsKey.liveStreamingPreset) var liveStreamingPresetRaw: String = LiveStreamer.StreamingPreset.ultraLowLatency.rawValue
     @AppStorage(SettingsKey.dictateRewriteLookbackWords) var rewriteLookbackWords: Int = 10
     @AppStorage(SettingsKey.subtitlePresentation) var subtitlePresentationRaw: String = SubtitlePresentationMode.floating.rawValue
+    @AppStorage(SettingsKey.subtitleIslandMonospace) var subtitleIslandMonospace: Bool = false
 
     var body: some View {
         Form {
@@ -95,7 +96,7 @@ private struct GeneralTab: View {
             Stepper(value: $rewriteLookbackWords, in: 6...18) {
                 HStack { Text("Rewrite lookback words"); Spacer(); Text("\(rewriteLookbackWords)") }
             }
-            .help("When Whisper revises recent words, OAE can rewrite up to this many trailing words in the saved transcript so corrections stay smooth. It does not clip subtitles anymore; it only affects how merged confirmed text is stabilized.")
+            .help("When Whisper revises recent words, OAE can rewrite up to this many trailing words in the merged saved transcript so corrections stay smooth. The floating subtitle island uses engine confirmed vs volatile lanes separately; this lookback does not drive island layout.")
             Picker("Live subtitle layout", selection: $subtitlePresentationRaw) {
                 ForEach(SubtitlePresentationMode.allCases) { mode in
                     Text(mode.displayName).tag(mode.rawValue)
@@ -106,6 +107,8 @@ private struct GeneralTab: View {
             }
             Text("Top notch strip pins subtitles under the menu bar on the main display. Floating island can be moved anywhere.")
                 .font(.caption).foregroundStyle(.secondary)
+            Toggle("Subtitle island: stable metrics (monospace)", isOn: $subtitleIslandMonospace)
+                .help("Uses monospaced typography in the live subtitle island so fixed-width cells jitter less. Off by default; turn on for maximum width stability.")
             Stepper(value: $confirmationSegments, in: 1...4) {
                 HStack { Text("Confirmation segments"); Spacer(); Text("\(confirmationSegments)") }
             }

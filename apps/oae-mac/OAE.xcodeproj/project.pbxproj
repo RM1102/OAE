@@ -14,18 +14,19 @@
 		11DF9BF580B6796BE4D783A1 /* Recording.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59A3F477226C89CB4229F7A3 /* Recording.swift */; };
 		14A2A840C249998C58B2DBFA /* OllamaBootstrap.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E8A11F9435281248276732A /* OllamaBootstrap.swift */; };
 		2A3B5FAA17B63461EC88D393 /* PromptEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 229D3CAEFB60FBB628EF485C /* PromptEditorView.swift */; };
+		2C340791332B7D7F80638CE0 /* SubtitleIslandInstrumentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59678639E2035623C224DA4F /* SubtitleIslandInstrumentation.swift */; };
 		3A2FDA27FB21207D5A38904B /* ModelStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEB00FC18EB4DE0B9980DA22 /* ModelStore.swift */; };
 		3B9948AF369A953C3FA7D90A /* VisualEffect.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B18C3917D89655A0327FC49 /* VisualEffect.swift */; };
 		3BFE5A013611EA626F1C51BF /* KeychainStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE490428D1C855258476B168 /* KeychainStore.swift */; };
 		4226A0A9576FD18D71FEE155 /* PostProcessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19810DE1BB44B43D656EFE46 /* PostProcessor.swift */; };
 		4289E2C55F5490E5D8988997 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08355BF16D1063308019F33D /* SettingsView.swift */; };
 		4C2F85CF49F4F7F2EE658E44 /* LiveStreamer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13F46C70A6CCCDEC13E6990D /* LiveStreamer.swift */; };
-		56370A0F8E8F10EE078DB1EE /* SubtitleIslandRingViewport.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8BB9844249FA41984C1F3DA /* SubtitleIslandRingViewport.swift */; };
 		58909DF037A9065967759C39 /* TranscriptStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34D0D0C896BD1ACCA2C5181F /* TranscriptStore.swift */; };
 		5D05B5A04D190411DB6ED7EE /* FileImportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21102C352CF2E6B7FC40F22A /* FileImportService.swift */; };
 		5D3F1BA704ECDFD6D0229251 /* WhisperKit in Frameworks */ = {isa = PBXBuildFile; productRef = 4AC4278117AF8A219D708992 /* WhisperKit */; };
 		5FDDE6B378FAF2D94C97C4EC /* DictateLivePostProcessCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 187E86F13E4CF86DCF68D96D /* DictateLivePostProcessCoordinator.swift */; };
 		673DE7E68AC6DFF0AA2080B7 /* CaptureSessionController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F8A6A8D574F3676E461206F /* CaptureSessionController.swift */; };
+		6B7820301989F1249B28E3C8 /* SubtitleFeedCoalescer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A389C6909145E6DB73E026A3 /* SubtitleFeedCoalescer.swift */; };
 		76E42557B6B10EDFF39F411E /* Providers.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA8706CB6D57002CA89D5BA3 /* Providers.swift */; };
 		7BECD753E73DC308AB728688 /* PromptLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED42E94657BFD74F89F0151C /* PromptLibrary.swift */; };
 		85B49C3E159A39C07F7BA7D0 /* Clipboard.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2C8EF069AF57A8436F94B15 /* Clipboard.swift */; };
@@ -42,6 +43,7 @@
 		DFFF4FDDEBD2C3DF22AB6EC7 /* FileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 917A0B190339EA1BAF0EF2F9 /* FileView.swift */; };
 		E0ED821427F67F6C6FC99F19 /* WaveformView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C0CB4F7D62501202A4CDD27 /* WaveformView.swift */; };
 		E14C766FDB0E8FCF350149ED /* StatusPill.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FADA4063DED071EE8099DD1 /* StatusPill.swift */; };
+		E42266171DAFEA256AA0E984 /* SubtitleIslandCompositor.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAAD30633E6FA15C8EFC4048 /* SubtitleIslandCompositor.swift */; };
 		E998AB5655ABC89C447F8167 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 7ADF96DDC5DF46426B786505 /* Assets.xcassets */; };
 /* End PBXBuildFile section */
 
@@ -63,6 +65,7 @@
 		458A964466A4D3DF57311217 /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
 		4B18C3917D89655A0327FC49 /* VisualEffect.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VisualEffect.swift; sourceTree = "<group>"; };
 		4E8A11F9435281248276732A /* OllamaBootstrap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OllamaBootstrap.swift; sourceTree = "<group>"; };
+		59678639E2035623C224DA4F /* SubtitleIslandInstrumentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubtitleIslandInstrumentation.swift; sourceTree = "<group>"; };
 		59A3F477226C89CB4229F7A3 /* Recording.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Recording.swift; sourceTree = "<group>"; };
 		7249E5E3F70D738BF1B3F586 /* HotkeyManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyManager.swift; sourceTree = "<group>"; };
 		75E13798379B81E79B10926C /* MenuBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarView.swift; sourceTree = "<group>"; };
@@ -72,7 +75,8 @@
 		8C0CB4F7D62501202A4CDD27 /* WaveformView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WaveformView.swift; sourceTree = "<group>"; };
 		917A0B190339EA1BAF0EF2F9 /* FileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileView.swift; sourceTree = "<group>"; };
 		9DA69A36A9AF83CB00CBF3A7 /* OAEApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OAEApp.swift; sourceTree = "<group>"; };
-		B8BB9844249FA41984C1F3DA /* SubtitleIslandRingViewport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubtitleIslandRingViewport.swift; sourceTree = "<group>"; };
+		A389C6909145E6DB73E026A3 /* SubtitleFeedCoalescer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubtitleFeedCoalescer.swift; sourceTree = "<group>"; };
+		BAAD30633E6FA15C8EFC4048 /* SubtitleIslandCompositor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubtitleIslandCompositor.swift; sourceTree = "<group>"; };
 		BEB00FC18EB4DE0B9980DA22 /* ModelStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelStore.swift; sourceTree = "<group>"; };
 		D357A1FF028BCE69C5EDAE9B /* OAE.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = OAE.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		DE490428D1C855258476B168 /* KeychainStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainStore.swift; sourceTree = "<group>"; };
@@ -160,7 +164,9 @@
 				5912BF09640BB58FD6853E18 /* Services */,
 				F64D6E86D738A838A85F3431 /* Views */,
 				9DA69A36A9AF83CB00CBF3A7 /* OAEApp.swift */,
-				B8BB9844249FA41984C1F3DA /* SubtitleIslandRingViewport.swift */,
+				A389C6909145E6DB73E026A3 /* SubtitleFeedCoalescer.swift */,
+				BAAD30633E6FA15C8EFC4048 /* SubtitleIslandCompositor.swift */,
+				59678639E2035623C224DA4F /* SubtitleIslandInstrumentation.swift */,
 			);
 			path = OAE;
 			sourceTree = "<group>";
@@ -289,7 +295,9 @@
 				11DF9BF580B6796BE4D783A1 /* Recording.swift in Sources */,
 				4289E2C55F5490E5D8988997 /* SettingsView.swift in Sources */,
 				E14C766FDB0E8FCF350149ED /* StatusPill.swift in Sources */,
-				56370A0F8E8F10EE078DB1EE /* SubtitleIslandRingViewport.swift in Sources */,
+				6B7820301989F1249B28E3C8 /* SubtitleFeedCoalescer.swift in Sources */,
+				E42266171DAFEA256AA0E984 /* SubtitleIslandCompositor.swift in Sources */,
+				2C340791332B7D7F80638CE0 /* SubtitleIslandInstrumentation.swift in Sources */,
 				0F50069A2988041B1A28FD42 /* TranscriptExporter.swift in Sources */,
 				58909DF037A9065967759C39 /* TranscriptStore.swift in Sources */,
 				A12F2E90B7BECE3A533C8304 /* TranscriptView.swift in Sources */,
@@ -314,6 +322,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = computer.oae.OAE;
 				PRODUCT_NAME = OAE;
 				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) SUBTITLE_ISLAND_INSTRUMENTATION";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 			};
 			name = Debug;

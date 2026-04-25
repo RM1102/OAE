@@ -49,6 +49,7 @@ public struct MenuBarView: View {
                       systemImage: subtitlesVisible ? "xmark.circle.fill" : "captions.bubble.fill")
             }
             .buttonStyle(.plain)
+            .help("Shows the island only while Dictate is active; other modes do not feed the overlay.")
 
             Picker("Layout", selection: $subtitlePresentationRaw) {
                 ForEach(SubtitlePresentationMode.allCases) { mode in
