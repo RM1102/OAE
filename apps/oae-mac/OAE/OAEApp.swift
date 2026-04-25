@@ -932,6 +932,9 @@ public struct SubtitleOverlayView: View {
     @AppStorage("oae.subtitle.safeMode") private var safeMode: Bool = true
     @AppStorage(SettingsKey.subtitlePresentation) private var presentationRaw: String = SubtitlePresentationMode.floating.rawValue
     @State private var controlsVisible: Bool = false
+    @State private var subtitleCompositor = SubtitleIslandGhostCompositor()
+    @State private var islandCaption = AttributedString()
+    @State private var ghostExpiryTask: Task<Void, Never>?
 
     private var presentation: SubtitlePresentationMode {
         SubtitlePresentationMode(rawValue: presentationRaw) ?? .floating
@@ -965,9 +968,8 @@ public struct SubtitleOverlayView: View {
 
             // Keep island display-only (Handy-style) to avoid gesture callback crashes.
 
-            Text(subtitleText)
+            Text(islandCaption)
                 .font(.system(size: fontSize, weight: .semibold, design: .rounded))
-                .foregroundStyle(.white)
                 .frame(maxWidth: .infinity, alignment: .center)
                 .lineLimit(3)
                 .minimumScaleFactor(0.5)
@@ -1019,23 +1021,51 @@ public struct SubtitleOverlayView: View {
             }
         }
         .padding(10)
+        .onAppear { syncIslandCaption() }
+        .onChange(of: transcript.fullText) { _, _ in syncIslandCaption() }
+        .onChange(of: transcript.confirmedSegments.count) { _, _ in syncIslandCaption() }
+        .onChange(of: chunkWords) { _, _ in
+            subtitleCompositor.reset()
+            syncIslandCaption()
+        }
+        .onDisappear {
+            ghostExpiryTask?.cancel()
+            ghostExpiryTask = nil
+        }
     }
 
-    private var subtitleText: String {
-        // Match the main Dictate transcript: confirmed segments + live partial (`TranscriptStore.fullText`).
-        // Previously we merged confirmed + partial incorrectly using `partialWords.prefix(...)`, which kept
-        // only the *first* few words of a long partial (e.g. "I don't see") and hid the live tail.
+    private func canonicalWindowWords() -> [String] {
         let base = transcript.fullText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !base.isEmpty else {
-            return "Your live subtitles will appear here..."
-        }
+        guard !base.isEmpty else { return [] }
         let words = tokenize(base)
         let size = max(3, chunkWords)
-        // Keep a larger trailing window so the island naturally renders 2-3 lines.
         let windowWordCount = max(12, size * 3)
-        let window = Array(words.suffix(windowWordCount))
-        let text = window.joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines)
-        return text.isEmpty ? "Your live subtitles will appear here..." : text
+        return Array(words.suffix(windowWordCount))
+    }
+
+    private func syncIslandCaption() {
+        ghostExpiryTask?.cancel()
+        ghostExpiryTask = nil
+        let window = canonicalWindowWords()
+        if window.isEmpty {
+            subtitleCompositor.reset()
+            var p = AttributedString("Your live subtitles will appear here...")
+            p.foregroundColor = .white.opacity(0.55)
+            islandCaption = p
+            return
+        }
+        var comp = subtitleCompositor
+        islandCaption = comp.consume(canonicalWindow: window)
+        subtitleCompositor = comp
+        guard subtitleCompositor.hasGhost else { return }
+        ghostExpiryTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 900_000_000)
+            guard !Task.isCancelled else { return }
+            var c = subtitleCompositor
+            let latest = canonicalWindowWords()
+            islandCaption = c.expireGhostIfNeeded(canonicalWindow: latest)
+            subtitleCompositor = c
+        }
     }
 
     private func tokenize(_ value: String) -> [String] {
