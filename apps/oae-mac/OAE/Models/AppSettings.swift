@@ -80,6 +80,8 @@ public enum SettingsKey {
     public static let subtitleCaptionStyle = "oae.subtitle.captionStyle"
     /// Toggle monospaced subtitle metrics for maximum visual stability.
     public static let subtitleIslandMonospace = "oae.subtitle.islandMonospace"
+    /// Subtitle update pacing profile.
+    public static let subtitlePaceMode = "oae.subtitle.paceMode"
 }
 
 /// Where live subtitles are drawn on screen.
@@ -100,7 +102,19 @@ public enum SubtitleCaptionStyle: String, CaseIterable, Sendable, Identifiable {
     public var id: String { rawValue }
     public var displayName: String {
         switch self {
-        case .classicStable: return "Classic stable (2-line)"
+        case .classicStable: return "Classic stable (one line)"
+        }
+    }
+}
+
+public enum SubtitlePaceMode: String, CaseIterable, Sendable, Identifiable {
+    case lectureStable
+    case realtimeFaster
+    public var id: String { rawValue }
+    public var displayName: String {
+        switch self {
+        case .lectureStable: return "Lecture (stable)"
+        case .realtimeFaster: return "Realtime (faster)"
         }
     }
 }

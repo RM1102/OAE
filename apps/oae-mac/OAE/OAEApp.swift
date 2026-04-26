@@ -780,7 +780,7 @@ public final class SubtitleOverlayController: NSObject, ObservableObject, NSWind
     private func applyChrome(for mode: SubtitlePresentationMode, to panel: NSPanel) {
         switch mode {
         case .floating:
-            panel.minSize = NSSize(width: 420, height: 96)
+            panel.minSize = NSSize(width: 420, height: 72)
             panel.maxSize = NSSize(width: 4000, height: 4000)
         case .notchStrip:
             if let screen = NSScreen.main {
@@ -796,11 +796,11 @@ public final class SubtitleOverlayController: NSObject, ObservableObject, NSWind
 
     private static func defaultFloatingFrame() -> NSRect {
         guard let screen = NSScreen.main else {
-            return NSRect(x: 220, y: 120, width: 920, height: 140)
+            return NSRect(x: 220, y: 120, width: 800, height: 120)
         }
         let vf = screen.visibleFrame
-        let w: CGFloat = 920
-        let h: CGFloat = 140
+        let w: CGFloat = 800
+        let h: CGFloat = 120
         let x = vf.minX + (vf.width - w) * 0.5
         let y = vf.minY + (vf.height - h) * 0.35
         return NSRect(x: x, y: y, width: w, height: h)
@@ -926,13 +926,12 @@ public struct SubtitleOverlayView: View {
     @EnvironmentObject var transcript: TranscriptStore
     @EnvironmentObject var overlay: SubtitleOverlayController
 
-    @AppStorage("oae.subtitle.fontSize") private var fontSize: Double = 35
+    @AppStorage("oae.subtitle.fontSize") private var fontSize: Double = 38
     @AppStorage("oae.subtitle.backgroundOpacity") private var bgOpacity: Double = 0.62
-    /// Segmented control: 3 = 12 words, 5 = 15 words, 7 = 18 words (stable visible window).
-    @AppStorage("oae.subtitle.chunkWords") private var chunkWords: Int = 5
     @AppStorage(SettingsKey.subtitlePresentation) private var presentationRaw: String = SubtitlePresentationMode.floating.rawValue
     @AppStorage(SettingsKey.subtitleIslandMonospace) private var subtitleIslandMonospace: Bool = false
     @AppStorage(SettingsKey.subtitleCaptionStyle) private var subtitleCaptionStyleRaw: String = SubtitleCaptionStyle.classicStable.rawValue
+    @AppStorage(SettingsKey.subtitlePaceMode) private var subtitlePaceModeRaw: String = SubtitlePaceMode.lectureStable.rawValue
     @State private var controlsVisible: Bool = false
     @StateObject private var cadence = SubtitleLineCadenceController()
 
@@ -944,15 +943,12 @@ public struct SubtitleOverlayView: View {
         SubtitleCaptionStyle(rawValue: subtitleCaptionStyleRaw) ?? .classicStable
     }
 
-    /// Maximum words held in the two-line visible window.
-    private var visibleWordWindow: Int {
-        switch chunkWords {
-        case 3: return 12
-        case 5: return 15
-        case 7: return 18
-        default: return 15
-        }
+    private var subtitlePaceMode: SubtitlePaceMode {
+        SubtitlePaceMode(rawValue: subtitlePaceModeRaw) ?? .lectureStable
     }
+
+    /// Upper bound for adaptive visible window (engine prefers 7 words, bursts to 8 under fast speech).
+    private let subtitleVisibleWordCap: Int = 8
 
     public init() {}
 
@@ -981,25 +977,21 @@ public struct SubtitleOverlayView: View {
             }
 
             Group {
-                if transcript.source != .dictate || (cadence.snapshot.line1.isEmpty && cadence.snapshot.line2.isEmpty) {
+                if transcript.source != .dictate || cadence.snapshot.tokens.isEmpty {
                     Text("Your live subtitles will appear here...")
                         .font(captionFont(weight: .semibold))
                         .foregroundStyle(.white.opacity(0.55))
                         .multilineTextAlignment(.center)
                 } else {
-                    VStack(alignment: .leading, spacing: 6) {
-                        lineView(tokens: cadence.snapshot.line1)
-                            .frame(minHeight: lineMinHeight, alignment: .leading)
-                        if !cadence.snapshot.line2.isEmpty {
-                            lineView(tokens: cadence.snapshot.line2)
-                                .frame(minHeight: lineMinHeight, alignment: .leading)
-                        }
-                    }
+                    singleCaptionLine(
+                        tokens: cadence.snapshot.tokens,
+                        changeKind: cadence.snapshot.changeKind
+                    )
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
             .shadow(color: .black.opacity(0.95), radius: 3, x: 0, y: 1)
-            .animation(.easeInOut(duration: 0.11), value: cadence.snapshot)
+            .animation(.easeInOut(duration: 0.22), value: captionTokenSignature(cadence.snapshot.tokens))
 
             if controlsVisible {
                 HStack(spacing: 14) {
@@ -1015,15 +1007,9 @@ public struct SubtitleOverlayView: View {
                             .foregroundStyle(.white.opacity(0.8))
                         Slider(value: $bgOpacity, in: 0.2...0.85, step: 0.01)
                     }
-                    Picker("Chunk", selection: $chunkWords) {
-                        Text("12w").tag(3)
-                        Text("15w").tag(5)
-                        Text("18w").tag(7)
-                    }
-                    .pickerStyle(.segmented)
-                    .frame(width: 118)
-                    .accessibilityLabel("Subtitle visible word window")
-                    .help("Maximum words held in the 2-line subtitle window (12 / 15 / 18). Confirmed words stay anchored while volatile rewrites are confined to the live edge.")
+                    Text("One line · ~7 words (auto 8 when fast)")
+                        .font(.caption2)
+                        .foregroundStyle(.white.opacity(0.72))
                 }
                 .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
@@ -1048,7 +1034,7 @@ public struct SubtitleOverlayView: View {
         .padding(10)
         .onAppear {
             if captionStyle == .classicStable {
-                cadence.start(transcript: transcript, maxVisibleWords: visibleWordWindow)
+                cadence.start(transcript: transcript, maxVisibleWords: subtitleVisibleWordCap, paceMode: subtitlePaceMode)
             }
         }
         .onDisappear {
@@ -1060,32 +1046,70 @@ public struct SubtitleOverlayView: View {
         .onChange(of: transcript.source) { _, _ in cadence.capturePending() }
         .onChange(of: overlay.isVisible) { _, visible in
             if visible {
-                cadence.start(transcript: transcript, maxVisibleWords: visibleWordWindow)
+                cadence.start(transcript: transcript, maxVisibleWords: subtitleVisibleWordCap, paceMode: subtitlePaceMode)
                 cadence.capturePending()
             } else {
                 cadence.stop()
             }
         }
-        .onChange(of: chunkWords) { _, _ in
-            cadence.updateWindowSize(visibleWordWindow)
+        .onChange(of: subtitlePaceModeRaw) { _, _ in
+            cadence.updatePaceMode(subtitlePaceMode)
         }
     }
 
     @ViewBuilder
-    private func lineView(tokens: [SubtitleLineSnapshot.StyledToken]) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 4) {
-            ForEach(Array(tokens.enumerated()), id: \.offset) { pair in
-                let token = pair.element
-                Text(token.value)
-                    .font(captionFont(weight: .semibold))
-                    .foregroundStyle(token.isVolatile ? .white.opacity(0.88) : .white)
-                    .lineLimit(1)
-                    .fixedSize()
-                    .contentTransition(.opacity)
-            }
-            Spacer(minLength: 0)
+    private func singleCaptionLine(
+        tokens: [SubtitleLineSnapshot.StyledToken],
+        changeKind: SubtitleLineChangeKind
+    ) -> some View {
+        let wordSig = lineWordSignature(tokens)
+        Text(attributedCaptionLine(tokens: tokens))
+            .font(captionFont(weight: .semibold))
+            .lineLimit(1)
+            .multilineTextAlignment(.leading)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(minHeight: lineMinHeight, alignment: .leading)
+            .id(rollLineIdentity(wordSignature: wordSig, changeKind: changeKind))
+            .transition(rollTransition(for: changeKind))
+    }
+
+    private func rollLineIdentity(wordSignature: String, changeKind: SubtitleLineChangeKind) -> String {
+        switch changeKind {
+        case .lineRoll, .tailRevision, .reset:
+            return "roll-\(wordSignature)"
+        case .confirmUpgrade, .idle:
+            return "stable-\(wordSignature)"
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func rollTransition(for kind: SubtitleLineChangeKind) -> AnyTransition {
+        switch kind {
+        case .lineRoll, .tailRevision:
+            return AnyTransition.move(edge: .bottom).combined(with: .opacity)
+        case .confirmUpgrade, .idle, .reset:
+            return AnyTransition.opacity
+        }
+    }
+
+    private func attributedCaptionLine(tokens: [SubtitleLineSnapshot.StyledToken]) -> AttributedString {
+        var result = AttributedString()
+        for (idx, t) in tokens.enumerated() {
+            var piece = AttributedString(t.value)
+            piece.foregroundColor = t.isVolatile ? .white.opacity(0.78) : .white
+            result.append(piece)
+            if idx < tokens.count - 1 {
+                result.append(AttributedString(" "))
+            }
+        }
+        return result
+    }
+
+    private func captionTokenSignature(_ tokens: [SubtitleLineSnapshot.StyledToken]) -> String {
+        tokens.map { "\($0.value)|\($0.isVolatile ? "1" : "0")" }.joined(separator: "·")
+    }
+
+    private func lineWordSignature(_ tokens: [SubtitleLineSnapshot.StyledToken]) -> String {
+        tokens.map(\.value).joined(separator: "|")
     }
 
     private var lineMinHeight: CGFloat {
@@ -1098,4 +1122,5 @@ public struct SubtitleOverlayView: View {
         }
         return .system(size: fontSize, weight: weight, design: .rounded)
     }
+
 }

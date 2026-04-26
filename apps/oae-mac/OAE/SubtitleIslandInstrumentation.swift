@@ -15,7 +15,7 @@ final class SubtitleIslandInstrumentation: @unchecked Sendable {
 
     private let lock = NSLock()
     private var transitionCounts: [SubtitleLineCompositor.Transition: Int] = [:]
-    private var lineBreakChurnCount: Int = 0
+    private var changeKindCounts: [SubtitleLineChangeKind: Int] = [:]
     private var flushCount: Int = 0
     private var hzEMA: Double = 0
     private var lastFlushAt: CFAbsoluteTime?
@@ -30,7 +30,7 @@ final class SubtitleIslandInstrumentation: @unchecked Sendable {
         guard isEnabled else { return }
         lock.lock()
         transitionCounts[snapshot.transition, default: 0] += 1
-        if snapshot.lineBreakChurned { lineBreakChurnCount += 1 }
+        changeKindCounts[snapshot.changeKind, default: 0] += 1
         lock.unlock()
     }
 
@@ -52,19 +52,20 @@ final class SubtitleIslandInstrumentation: @unchecked Sendable {
         if shouldLog {
             lastLogAt = now
             let transitions = transitionCounts
-            let churn = lineBreakChurnCount
+            let kinds = changeKindCounts
             let flushes = flushCount
             let ema = hzEMA
             transitionCounts.removeAll(keepingCapacity: true)
-            lineBreakChurnCount = 0
+            changeKindCounts.removeAll(keepingCapacity: true)
             flushCount = 0
             lock.unlock()
 
-            let parts = SubtitleLineCompositor.Transition.allCases.map { "\($0.rawValue)=\(transitions[$0] ?? 0)" }
+            let tParts = SubtitleLineCompositor.Transition.allCases.map { "\($0.rawValue)=\(transitions[$0] ?? 0)" }
+            let kParts = SubtitleLineChangeKind.allCases.map { "\($0.rawValue)=\(kinds[$0] ?? 0)" }
             NSLog(
-                "[OAE.Subtitles] transitions %@ lineBreakChurn=%d uiHzEMA=%.1f flushes=%d",
-                parts.joined(separator: " "),
-                churn,
+                "[OAE.Subtitles] transitions %@ changeKinds %@ uiHzEMA=%.1f flushes=%d",
+                tParts.joined(separator: " "),
+                kParts.joined(separator: " "),
                 ema,
                 flushes
             )

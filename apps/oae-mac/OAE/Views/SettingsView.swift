@@ -78,6 +78,7 @@ private struct GeneralTab: View {
     @AppStorage(SettingsKey.subtitlePresentation) var subtitlePresentationRaw: String = SubtitlePresentationMode.floating.rawValue
     @AppStorage(SettingsKey.subtitleCaptionStyle) var subtitleCaptionStyleRaw: String = SubtitleCaptionStyle.classicStable.rawValue
     @AppStorage(SettingsKey.subtitleIslandMonospace) var subtitleIslandMonospace: Bool = false
+    @AppStorage(SettingsKey.subtitlePaceMode) var subtitlePaceModeRaw: String = SubtitlePaceMode.lectureStable.rawValue
 
     var body: some View {
         Form {
@@ -111,9 +112,16 @@ private struct GeneralTab: View {
                     Text(style.displayName).tag(style.rawValue)
                 }
             }
+            .help("Classic stable uses one caption line with an adaptive 7/8 word window and separate pacing for volatile gray tail vs line rolls.")
+            Picker("Subtitle pace", selection: $subtitlePaceModeRaw) {
+                ForEach(SubtitlePaceMode.allCases) { mode in
+                    Text(mode.displayName).tag(mode.rawValue)
+                }
+            }
+            .help("Lecture (stable) is the default: slower cadence, one-line captions (~7 words, auto-expanding to 8 when speech is fast), and spacing between confirm vs roll updates for readability. Realtime (faster) tightens those timings.")
             Toggle("Subtitle island: stable metrics (monospace)", isOn: $subtitleIslandMonospace)
                 .help("Optional advanced mode for maximum visual stability. Uses monospaced glyph metrics in the subtitle island.")
-            Text("Top notch strip pins subtitles under the menu bar on the main display. Floating island can be moved anywhere. Classic stable style is default.")
+            Text("Top notch strip pins subtitles under the menu bar on the main display. Floating island can be moved anywhere. Classic stable shows a single caption line with dim volatile tail and confirmed words in full opacity.")
                 .font(.caption).foregroundStyle(.secondary)
             Stepper(value: $confirmationSegments, in: 1...4) {
                 HStack { Text("Confirmation segments"); Spacer(); Text("\(confirmationSegments)") }

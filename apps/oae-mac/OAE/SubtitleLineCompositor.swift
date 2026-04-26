@@ -1,26 +1,38 @@
 import Foundation
 
+/// Semantic kind of a subtitle publish (used for cadence gating and instrumentation).
+enum SubtitleLineChangeKind: String, CaseIterable, Equatable {
+    case idle
+    case confirmUpgrade
+    case lineRoll
+    case tailRevision
+    case reset
+}
+
 struct SubtitleLineSnapshot: Equatable {
     struct StyledToken: Equatable {
         let value: String
         let isVolatile: Bool
     }
 
-    var line1: [StyledToken]
-    var line2: [StyledToken]
+    /// Single visible caption line (suffix of confirmed + volatile, up to adaptive max words).
+    var tokens: [StyledToken]
+    /// Index in `tokens` of first volatile token, or `tokens.count` if none.
     var boundaryIndex: Int
     var transition: SubtitleLineCompositor.Transition
-    var lineBreakChurned: Bool
+    /// Filled by cadence when publishing (compositor leaves `.idle`).
+    var changeKind: SubtitleLineChangeKind
 
     static var empty: SubtitleLineSnapshot {
-        .init(line1: [], line2: [], boundaryIndex: 0, transition: .reset, lineBreakChurned: false)
+        .init(tokens: [], boundaryIndex: 0, transition: .reset, changeKind: .idle)
     }
 }
 
 struct SubtitleLineCompositor {
     enum Transition: String, CaseIterable {
-        case bootstrap
-        case append
+        case liveFill
+        case lineCommitted
+        case lineRoll
         case tailRevision
         case confirmationShift
         case reset
@@ -29,13 +41,11 @@ struct SubtitleLineCompositor {
     private var previousSessionID: UUID?
     private var previousConfirmed: [String] = []
     private var previousVolatile: [String] = []
-    private var previousBreakIndex: Int = 0
 
     mutating func reset() {
         previousSessionID = nil
         previousConfirmed = []
         previousVolatile = []
-        previousBreakIndex = 0
     }
 
     mutating func compose(
@@ -44,7 +54,7 @@ struct SubtitleLineCompositor {
         volatile: [String],
         maxVisibleWords: Int
     ) -> SubtitleLineSnapshot {
-        let visibleLimit = max(8, maxVisibleWords)
+        let visibleLimit = max(1, min(12, maxVisibleWords))
         let total = confirmed + volatile
         let visibleStart = max(0, total.count - visibleLimit)
         let visible = Array(total.dropFirst(visibleStart))
@@ -54,38 +64,30 @@ struct SubtitleLineCompositor {
             previousSessionID = sessionID
             previousConfirmed = []
             previousVolatile = []
-            previousBreakIndex = 0
             return .init(
-                line1: [],
-                line2: [],
+                tokens: [],
                 boundaryIndex: 0,
-                transition: hadContent ? .reset : .bootstrap,
-                lineBreakChurned: false
+                transition: hadContent ? .reset : .liveFill,
+                changeKind: .idle
             )
         }
 
         let transition = classifyTransition(sessionID: sessionID, confirmed: confirmed, volatile: volatile)
         let volatileVisibleCount = min(volatile.count, visible.count)
         let boundary = max(0, visible.count - volatileVisibleCount)
-        let breakIndex = stableBreakIndex(totalVisible: visible.count, boundary: boundary, transition: transition)
-        let tokens = visible.enumerated().map { idx, token in
+        let styled = visible.enumerated().map { idx, token in
             SubtitleLineSnapshot.StyledToken(value: token, isVolatile: idx >= boundary)
         }
-        let line1 = Array(tokens.prefix(breakIndex))
-        let line2 = Array(tokens.dropFirst(breakIndex))
-        let churn = previousBreakIndex != 0 && previousBreakIndex != breakIndex
 
         previousSessionID = sessionID
         previousConfirmed = confirmed
         previousVolatile = volatile
-        previousBreakIndex = breakIndex
 
         return .init(
-            line1: line1,
-            line2: line2,
+            tokens: styled,
             boundaryIndex: boundary,
             transition: transition,
-            lineBreakChurned: churn
+            changeKind: .idle
         )
     }
 
@@ -94,55 +96,24 @@ struct SubtitleLineCompositor {
             return .reset
         }
         if previousConfirmed.isEmpty && previousVolatile.isEmpty {
-            return .bootstrap
+            return .liveFill
         }
         if confirmed == previousConfirmed && volatile != previousVolatile {
             if volatile.count > previousVolatile.count, Array(volatile.prefix(previousVolatile.count)) == previousVolatile {
-                return .append
+                return .liveFill
             }
             return .tailRevision
         }
         if confirmed != previousConfirmed {
             if confirmed.count > previousConfirmed.count,
                Array(confirmed.prefix(previousConfirmed.count)) == previousConfirmed {
-                return .confirmationShift
+                if volatile.count <= previousVolatile.count {
+                    return .confirmationShift
+                }
+                return .lineCommitted
             }
             return .tailRevision
         }
-        if volatile.count > previousVolatile.count {
-            return .append
-        }
-        return .tailRevision
-    }
-
-    private func stableBreakIndex(totalVisible: Int, boundary: Int, transition: Transition) -> Int {
-        if totalVisible <= 1 { return totalVisible }
-        let minLine1 = max(1, totalVisible / 3)
-        let maxLine1 = max(minLine1, (totalVisible * 2) / 3)
-        let preferred = min(max(totalVisible / 2, minLine1), maxLine1)
-        if previousBreakIndex == 0 {
-            return preferred
-        }
-
-        var candidate = previousBreakIndex
-        candidate = min(max(candidate, minLine1), maxLine1)
-
-        switch transition {
-        case .tailRevision:
-            // Keep the line break stable through volatile churn.
-            return candidate
-        case .append, .confirmationShift:
-            // Hysteresis: move only when previous split drifts too far.
-            if abs(candidate - preferred) <= 1 {
-                return candidate
-            }
-            // Keep boundary changes toward the right edge to preserve line 1 anchor.
-            if boundary > candidate, boundary - candidate <= 2 {
-                return candidate
-            }
-            return preferred
-        case .bootstrap, .reset:
-            return preferred
-        }
+        return .liveFill
     }
 }
