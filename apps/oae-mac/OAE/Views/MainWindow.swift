@@ -1,16 +1,18 @@
 import SwiftUI
 import Combine
+import AVFoundation
 #if canImport(AppKit)
 import AppKit
 #endif
 
 public enum MainTab: String, CaseIterable, Identifiable {
-    case dictate, capture, file, post
+    case dictate, capture, permissions, file, post
     public var id: String { rawValue }
     public var title: String {
         switch self {
         case .dictate: return "Dictate"
         case .capture: return "Capture"
+        case .permissions: return "Permissions"
         case .file:    return "File"
         case .post:    return "Post Process"
         }
@@ -19,6 +21,7 @@ public enum MainTab: String, CaseIterable, Identifiable {
         switch self {
         case .dictate: return "waveform"
         case .capture: return "record.circle"
+        case .permissions: return "lock.shield"
         case .file:    return "doc.text.fill"
         case .post:    return "sparkles"
         }
@@ -61,6 +64,7 @@ public struct MainWindow: View {
                     switch selection {
                     case .dictate: DictateView()
                     case .capture: CaptureView()
+                    case .permissions: PermissionsQuickTab()
                     case .file:    FileView()
                     case .post:    PostProcessView()
                     }
@@ -343,6 +347,113 @@ public struct MainWindow: View {
         }
         .padding(22)
         .frame(width: 560)
+    }
+}
+
+private struct PermissionsQuickTab: View {
+    @State private var micStatus: AVAuthorizationStatus = AVCaptureDevice.authorizationStatus(for: .audio)
+    @State private var downloadsStatus: String = "Unknown"
+    @State private var downloadsMessage: String = ""
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Permissions")
+                .font(.title2.bold())
+            Text("Manage required access if you skipped Allow prompts earlier.")
+                .foregroundStyle(.secondary)
+
+            GroupBox("Microphone") {
+                VStack(alignment: .leading, spacing: 8) {
+                    statusRow("Status", micStatusText)
+                    HStack(spacing: 10) {
+                        Button("Request Access") {
+                            Task {
+                                _ = await AudioCapture.ensureMicPermission()
+                                refresh()
+                            }
+                        }
+                        Button("Open Settings") {
+                            guard let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone") else { return }
+                            NSWorkspace.shared.open(url)
+                        }
+                    }
+                    Text("If denied, macOS won't re-prompt automatically. Use Open Settings to enable OAE.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            GroupBox("Downloads folder") {
+                VStack(alignment: .leading, spacing: 8) {
+                    statusRow("Status", downloadsStatus)
+                    HStack(spacing: 10) {
+                        Button("Check Access") {
+                            refreshDownloads()
+                        }
+                        Button("Open Files & Folders") {
+                            guard let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_FilesAndFolders") else { return }
+                            NSWorkspace.shared.open(url)
+                        }
+                    }
+                    if !downloadsMessage.isEmpty {
+                        Text(downloadsMessage)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(18)
+        .onAppear { refresh() }
+    }
+
+    private var micStatusText: String {
+        switch micStatus {
+        case .authorized: return "Allowed"
+        case .notDetermined: return "Not requested yet"
+        case .denied: return "Denied"
+        case .restricted: return "Restricted"
+        @unknown default: return "Unknown"
+        }
+    }
+
+    private func refresh() {
+        micStatus = AVCaptureDevice.authorizationStatus(for: .audio)
+        refreshDownloads()
+    }
+
+    private func refreshDownloads() {
+        let fm = FileManager.default
+        let downloads = fm.homeDirectoryForCurrentUser.appendingPathComponent("Downloads", isDirectory: true)
+        let probe = downloads.appendingPathComponent(".oae-permission-probe-\(UUID().uuidString)")
+        do {
+            try Data("ok".utf8).write(to: probe, options: .atomic)
+            try? fm.removeItem(at: probe)
+            downloadsStatus = "Allowed"
+            downloadsMessage = "Downloads folder is writable by OAE."
+        } catch {
+            let ns = error as NSError
+            if ns.domain == NSCocoaErrorDomain && (ns.code == NSFileWriteNoPermissionError || ns.code == 257 || ns.code == 513) {
+                downloadsStatus = "Denied"
+                downloadsMessage = "Access denied. Enable OAE in Privacy & Security > Files and Folders."
+            } else {
+                downloadsStatus = "Unknown"
+                downloadsMessage = "Could not verify Downloads access: \(ns.localizedDescription)"
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func statusRow(_ label: String, _ value: String) -> some View {
+        HStack {
+            Text(label)
+            Spacer()
+            Text(value)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(value == "Allowed" ? .green : (value == "Denied" ? .red : .orange))
+        }
     }
 }
 
