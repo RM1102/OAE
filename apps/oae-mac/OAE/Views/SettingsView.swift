@@ -1,13 +1,16 @@
 import SwiftUI
+import AVFoundation
+import AppKit
 
 private enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
-    case general, models, shortcuts, prompts, updates, about
+    case general, permissions, models, shortcuts, prompts, updates, about
 
     var id: String { rawValue }
 
     var title: String {
         switch self {
         case .general: return "General"
+        case .permissions: return "Permissions"
         case .models: return "Models"
         case .shortcuts: return "Shortcuts"
         case .prompts: return "Prompts"
@@ -19,6 +22,7 @@ private enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
     var symbol: String {
         switch self {
         case .general: return "gear"
+        case .permissions: return "lock.shield"
         case .models: return "brain"
         case .shortcuts: return "keyboard"
         case .prompts: return "text.book.closed"
@@ -54,6 +58,7 @@ public struct SettingsView: View {
                 Group {
                     switch section {
                     case .general: GeneralTab()
+                    case .permissions: PermissionsTab()
                     case .models: ModelsTab()
                     case .shortcuts: ShortcutsTab()
                     case .prompts: PromptsTab()
@@ -167,6 +172,158 @@ private struct GeneralTab: View {
             }
             Text("LocalAgreement confirmation controls when gray pending text turns white. Low latency mode forces faster confirmation (fewer segments), with slightly higher chance of micro-corrections.")
                 .font(.caption).foregroundStyle(.secondary)
+        }
+    }
+}
+
+
+
+// MARK: - Permissions
+
+private struct PermissionsTab: View {
+    @State private var micStatus: AVAuthorizationStatus = AVCaptureDevice.authorizationStatus(for: .audio)
+    @State private var downloadsStatus: DownloadsAccessStatus = .unknown
+    @State private var lastDownloadsMessage: String = ""
+
+    var body: some View {
+        Form {
+            Section("Microphone") {
+                permissionRow(
+                    title: "Microphone",
+                    statusText: micStatusText,
+                    statusColor: micStatusColor
+                )
+                HStack(spacing: 10) {
+                    Button("Request Microphone Access") {
+                        Task {
+                            _ = await AudioCapture.ensureMicPermission()
+                            refreshStatuses()
+                        }
+                    }
+                    Button("Open Microphone Settings") {
+                        guard let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone") else { return }
+                        NSWorkspace.shared.open(url)
+                    }
+                }
+                Text("If you denied microphone access earlier, macOS will not prompt again. Use Open Microphone Settings to re-enable it.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section("Downloads folder") {
+                permissionRow(
+                    title: "Downloads access",
+                    statusText: downloadsStatusText,
+                    statusColor: downloadsStatusColor
+                )
+                HStack(spacing: 10) {
+                    Button("Check Downloads Access") {
+                        refreshDownloadsStatus()
+                    }
+                    Button("Open Files & Folders Settings") {
+                        guard let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_FilesAndFolders") else { return }
+                        NSWorkspace.shared.open(url)
+                    }
+                }
+                if !lastDownloadsMessage.isEmpty {
+                    Text(lastDownloadsMessage)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Text("Checking access attempts a tiny temp file create/delete inside Downloads. If denied, allow OAE under Privacy & Security -> Files and Folders.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .onAppear {
+            refreshStatuses()
+        }
+    }
+
+    private var micStatusText: String {
+        switch micStatus {
+        case .authorized: return "Allowed"
+        case .notDetermined: return "Not requested yet"
+        case .denied: return "Denied"
+        case .restricted: return "Restricted"
+        @unknown default: return "Unknown"
+        }
+    }
+
+    private var micStatusColor: Color {
+        switch micStatus {
+        case .authorized: return .green
+        case .notDetermined: return .orange
+        case .denied, .restricted: return .red
+        @unknown default: return .secondary
+        }
+    }
+
+    private var downloadsStatusText: String {
+        switch downloadsStatus {
+        case .allowed: return "Allowed"
+        case .denied: return "Denied"
+        case .unknown: return "Unknown"
+        }
+    }
+
+    private var downloadsStatusColor: Color {
+        switch downloadsStatus {
+        case .allowed: return .green
+        case .denied: return .red
+        case .unknown: return .orange
+        }
+    }
+
+    private func refreshStatuses() {
+        micStatus = AVCaptureDevice.authorizationStatus(for: .audio)
+        refreshDownloadsStatus()
+    }
+
+    private func refreshDownloadsStatus() {
+        let result = PermissionsInspector.probeDownloadsAccess()
+        downloadsStatus = result.status
+        lastDownloadsMessage = result.message
+    }
+
+    @ViewBuilder
+    private func permissionRow(title: String, statusText: String, statusColor: Color) -> some View {
+        HStack {
+            Text(title)
+            Spacer()
+            Text(statusText)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(statusColor)
+        }
+    }
+}
+
+private enum DownloadsAccessStatus {
+    case unknown
+    case allowed
+    case denied
+}
+
+private enum PermissionsInspector {
+    static func probeDownloadsAccess() -> (status: DownloadsAccessStatus, message: String) {
+        let fm = FileManager.default
+        let downloads = fm.homeDirectoryForCurrentUser.appendingPathComponent("Downloads", isDirectory: true)
+        let probe = downloads.appendingPathComponent(".oae-permission-probe-\(UUID().uuidString)")
+        let payload = Data("ok".utf8)
+
+        do {
+            try payload.write(to: probe, options: .atomic)
+            try? fm.removeItem(at: probe)
+            return (.allowed, "Downloads folder is writable by OAE.")
+        } catch {
+            let ns = error as NSError
+            if ns.domain == NSCocoaErrorDomain, ns.code == NSFileWriteNoPermissionError {
+                return (.denied, "No permission to write to Downloads (macOS denied access).")
+            }
+            if ns.code == 257 || ns.code == 513 {
+                return (.denied, "Access denied by macOS privacy controls.")
+            }
+            return (.unknown, "Could not verify Downloads access: \(ns.localizedDescription)")
         }
     }
 }
