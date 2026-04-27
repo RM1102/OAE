@@ -74,25 +74,35 @@ public enum SettingsKey {
     public static let shippingModelsReady = "oae.shipping.modelsReady"
     /// Tracks whether Ollama daemon/model setup was completed for shipping kit.
     public static let shippingOllamaReady = "oae.shipping.ollamaReady"
-    /// Live subtitle overlay layout: `floating` (draggable island) or `notchStrip` (top-center strip).
+    /// Live subtitle overlay layout: `floating`, `notchStrip`, or `movie` (lower-third style).
     public static let subtitlePresentation = "oae.subtitle.presentation"
+    /// Movie-style captions: inset from bottom of visible frame (points).
+    public static let subtitleMovieInsetFromBottom = "oae.subtitle.movieInsetFromBottom"
+    /// Movie-style captions: max width as fraction of panel width (0.5–0.92).
+    public static let subtitleMovieMaxWidthFraction = "oae.subtitle.movieMaxWidthFraction"
+    /// Movie-style captions: horizontal offset from center (points, negative = left).
+    public static let subtitleMovieHorizontalBias = "oae.subtitle.movieHorizontalBias"
     /// Live subtitle caption style.
     public static let subtitleCaptionStyle = "oae.subtitle.captionStyle"
     /// Toggle monospaced subtitle metrics for maximum visual stability.
     public static let subtitleIslandMonospace = "oae.subtitle.islandMonospace"
     /// Subtitle update pacing profile.
     public static let subtitlePaceMode = "oae.subtitle.paceMode"
+    /// When true, Sparkle may offer `<sparkle:channel>beta</sparkle:channel>` appcast items in addition to the default channel.
+    public static let updatesWantsBeta = "oae.updates.wantsBeta"
 }
 
 /// Where live subtitles are drawn on screen.
 public enum SubtitlePresentationMode: String, CaseIterable, Sendable, Identifiable {
     case floating
     case notchStrip
+    case movie
     public var id: String { rawValue }
     public var displayName: String {
         switch self {
         case .floating: return "Floating island"
         case .notchStrip: return "Top notch strip"
+        case .movie: return "Movie (lower third)"
         }
     }
 }

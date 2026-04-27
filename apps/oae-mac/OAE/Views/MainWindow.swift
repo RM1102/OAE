@@ -203,17 +203,17 @@ public struct MainWindow: View {
                     Text(mode.displayName).tag(mode.rawValue)
                 }
             }
-            .pickerStyle(.segmented)
-            .frame(maxWidth: 300)
+            .pickerStyle(.menu)
+            .frame(minWidth: 200, maxWidth: 260)
             .labelsHidden()
             .accessibilityLabel("Subtitle layout")
-            .help("Floating island: drag anywhere. Top notch strip: pinned under the menu bar. Live subtitles render in stable 1-2 lines and only while Dictate is active.")
+            .help("Floating island: drag to move. Top notch: under menu bar. Movie: lower-third black block; position in Settings. Dictate only.")
             if subtitlesVisible {
                 Toggle("Safe", isOn: $subtitleSafeMode)
                     .toggleStyle(.switch)
                     .controlSize(.small)
                     .help("Safe mode uses a conservative subtitle panel interaction model.")
-                if !subtitleSafeMode, subtitlePresentationMode != .notchStrip {
+                if !subtitleSafeMode, subtitlePresentationMode != .notchStrip, subtitlePresentationMode != .movie {
                     Button {
                         SubtitleOverlayController.shared.togglePositionLock()
                     } label: {

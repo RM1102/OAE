@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import Sparkle
 
 @MainActor
 final class ProfessorSetupCoordinator: ObservableObject {
@@ -356,6 +357,7 @@ struct OAEApp: App {
                 .environmentObject(promptLibrary)
                 .environmentObject(transcript)
                 .environmentObject(captureSession)
+                .environmentObject(UpdateService.shared)
                 .frame(minWidth: 620, minHeight: 520)
                 .task {
                     await bootstrap()
@@ -368,6 +370,13 @@ struct OAEApp: App {
         .windowToolbarStyle(.unified(showsTitle: true))
         .commands {
             CommandGroup(replacing: .newItem) { }
+            CommandGroup(after: .appInfo) {
+                Button("Check for Updates…") {
+                    UpdateService.shared.checkForUpdates()
+                }
+                .disabled(!UpdateService.shared.canCheckForUpdates)
+                .keyboardShortcut("u", modifiers: [.command, .shift])
+            }
         }
 
         Settings {
@@ -377,6 +386,7 @@ struct OAEApp: App {
                 .environmentObject(hotkeys)
                 .environmentObject(promptLibrary)
                 .environmentObject(transcript)
+                .environmentObject(UpdateService.shared)
                 .frame(minWidth: 520, minHeight: 420)
                 .frame(idealWidth: 560, idealHeight: 480)
         }
@@ -606,6 +616,7 @@ private struct ProfessorSetupSheet: View {
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
+        UpdateService.shared.startStandardUpdaterIfNeeded()
     }
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
 }
@@ -697,7 +708,8 @@ public final class SubtitleOverlayController: NSObject, ObservableObject, NSWind
     }
 
     public func togglePositionLock() {
-        if readPresentation() == .notchStrip { return }
+        let mode = readPresentation()
+        if mode == .notchStrip || mode == .movie { return }
         if safeMode { return }
         positionLocked.toggle()
         applyInteractionMode()
@@ -714,6 +726,10 @@ public final class SubtitleOverlayController: NSObject, ObservableObject, NSWind
             applyInteractionMode()
             if mode == .notchStrip, let screen = NSScreen.main {
                 existing.setFrame(Self.computeNotchStripFrame(for: screen), display: true)
+            }
+            if mode == .movie, let screen = NSScreen.main {
+                let r = Self.computeMoviePanelFrame(for: screen)
+                existing.setFrame(r, display: true)
             }
             return existing
         }
@@ -732,6 +748,11 @@ public final class SubtitleOverlayController: NSObject, ObservableObject, NSWind
                     return Self.computeNotchStripFrame(for: screen)
                 }
                 return NSRect(x: 220, y: 120, width: 920, height: 68)
+            case .movie:
+                if let screen = NSScreen.main {
+                    return Self.computeMoviePanelFrame(for: screen)
+                }
+                return NSRect(x: 0, y: 0, width: 1280, height: 800)
             }
         }()
 
@@ -739,7 +760,7 @@ public final class SubtitleOverlayController: NSObject, ObservableObject, NSWind
             switch mode {
             case .floating:
                 return [.titled, .closable, .fullSizeContentView, .resizable, .nonactivatingPanel]
-            case .notchStrip:
+            case .notchStrip, .movie:
                 return [.titled, .closable, .fullSizeContentView, .nonactivatingPanel]
             }
         }()
@@ -761,7 +782,7 @@ public final class SubtitleOverlayController: NSObject, ObservableObject, NSWind
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         panel.backgroundColor = .clear
         panel.isOpaque = false
-        panel.hasShadow = true
+        panel.hasShadow = mode != .movie
         panel.delegate = self
 
         panel.contentView = NSHostingView(
@@ -791,7 +812,21 @@ public final class SubtitleOverlayController: NSObject, ObservableObject, NSWind
                 panel.minSize = NSSize(width: 420, height: 68)
                 panel.maxSize = panel.minSize
             }
+        case .movie:
+            if let screen = NSScreen.main {
+                let r = Self.computeMoviePanelFrame(for: screen)
+                panel.minSize = NSSize(width: r.width, height: r.height)
+                panel.maxSize = panel.minSize
+            } else {
+                panel.minSize = NSSize(width: 800, height: 600)
+                panel.maxSize = panel.minSize
+            }
         }
+    }
+
+    /// Full visible-frame panel so the SwiftUI layer can bottom-anchor a small caption; clicks pass through.
+    private static func computeMoviePanelFrame(for screen: NSScreen) -> NSRect {
+        screen.visibleFrame
     }
 
     private static func defaultFloatingFrame() -> NSRect {
@@ -823,11 +858,15 @@ public final class SubtitleOverlayController: NSObject, ObservableObject, NSWind
 
     private func applyInteractionMode() {
         guard let panel else { return }
-        panel.ignoresMouseEvents = false
         switch readPresentation() {
         case .notchStrip:
+            panel.ignoresMouseEvents = false
+            panel.isMovableByWindowBackground = false
+        case .movie:
+            panel.ignoresMouseEvents = true
             panel.isMovableByWindowBackground = false
         case .floating:
+            panel.ignoresMouseEvents = false
             panel.isMovableByWindowBackground = safeMode ? true : !positionLocked
         }
     }
@@ -841,8 +880,12 @@ public final class SubtitleOverlayController: NSObject, ObservableObject, NSWind
         ) { [weak self] _ in
             guard let self, let panel = self.panel, self.isVisible else { return }
             guard self.didExplicitShow else { return }
-            if self.readPresentation() == .notchStrip, let screen = NSScreen.main {
+            let mode = self.readPresentation()
+            if mode == .notchStrip, let screen = NSScreen.main {
                 panel.setFrame(Self.computeNotchStripFrame(for: screen), display: true)
+            }
+            if mode == .movie, let screen = NSScreen.main {
+                panel.setFrame(Self.computeMoviePanelFrame(for: screen), display: true)
             }
             // Re-front only when it lost visibility on a space transition.
             guard !panel.occlusionState.contains(.visible) else { return }
@@ -861,8 +904,13 @@ public final class SubtitleOverlayController: NSObject, ObservableObject, NSWind
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            self?.reframeNotchStripIfNeeded()
+            self?.reframeSubtitlePresentationIfNeeded()
         }
+    }
+
+    private func reframeSubtitlePresentationIfNeeded() {
+        reframeNotchStripIfNeeded()
+        reframeMoviePanelIfNeeded()
     }
 
     private func reframeNotchStripIfNeeded() {
@@ -872,6 +920,15 @@ public final class SubtitleOverlayController: NSObject, ObservableObject, NSWind
         panel.maxSize = panel.minSize
         panel.setFrame(r, display: true)
         NSLog("[OAE.Subtitles] reframe_notch_strip")
+    }
+
+    private func reframeMoviePanelIfNeeded() {
+        guard isVisible, readPresentation() == .movie, let panel, let screen = NSScreen.main else { return }
+        let r = Self.computeMoviePanelFrame(for: screen)
+        panel.minSize = NSSize(width: r.width, height: r.height)
+        panel.maxSize = panel.minSize
+        panel.setFrame(r, display: true)
+        NSLog("[OAE.Subtitles] reframe_movie_panel")
     }
 
     private var safeMode: Bool {
@@ -901,13 +958,20 @@ public final class SubtitleOverlayController: NSObject, ObservableObject, NSWind
 
     private func showNow(transcript: TranscriptStore) {
         let panel = ensurePanel(transcript: transcript)
-        panel.ignoresMouseEvents = false
-        if readPresentation() == .notchStrip, let screen = NSScreen.main {
+        let mode = readPresentation()
+        if mode == .notchStrip, let screen = NSScreen.main {
             let r = Self.computeNotchStripFrame(for: screen)
             panel.minSize = NSSize(width: r.width, height: r.height)
             panel.maxSize = panel.minSize
             panel.setFrame(r, display: true)
         }
+        if mode == .movie, let screen = NSScreen.main {
+            let r = Self.computeMoviePanelFrame(for: screen)
+            panel.minSize = NSSize(width: r.width, height: r.height)
+            panel.maxSize = panel.minSize
+            panel.setFrame(r, display: true)
+        }
+        applyInteractionMode()
         panel.orderFront(nil)
         isVisible = true
         didExplicitShow = true
@@ -932,6 +996,9 @@ public struct SubtitleOverlayView: View {
     @AppStorage(SettingsKey.subtitleIslandMonospace) private var subtitleIslandMonospace: Bool = false
     @AppStorage(SettingsKey.subtitleCaptionStyle) private var subtitleCaptionStyleRaw: String = SubtitleCaptionStyle.classicStable.rawValue
     @AppStorage(SettingsKey.subtitlePaceMode) private var subtitlePaceModeRaw: String = SubtitlePaceMode.lectureStable.rawValue
+    @AppStorage(SettingsKey.subtitleMovieInsetFromBottom) private var movieInsetFromBottom: Double = 60
+    @AppStorage(SettingsKey.subtitleMovieMaxWidthFraction) private var movieMaxWidthFraction: Double = 0.72
+    @AppStorage(SettingsKey.subtitleMovieHorizontalBias) private var movieHorizontalBiasPoints: Double = 0
     @State private var controlsVisible: Bool = false
     @StateObject private var cadence = SubtitleLineCadenceController()
 
@@ -953,6 +1020,39 @@ public struct SubtitleOverlayView: View {
     public init() {}
 
     public var body: some View {
+        Group {
+            if presentation == .movie {
+                movieChromeBody
+            } else {
+                islandChromeBody
+            }
+        }
+        .onAppear {
+            if captionStyle == .classicStable {
+                cadence.start(transcript: transcript, maxVisibleWords: subtitleVisibleWordCap, paceMode: subtitlePaceMode)
+            }
+        }
+        .onDisappear {
+            cadence.stop()
+        }
+        .onChange(of: transcript.subtitleConfirmedWords) { _, _ in cadence.capturePending() }
+        .onChange(of: transcript.subtitleVolatileWords) { _, _ in cadence.capturePending() }
+        .onChange(of: transcript.subtitleFeedDictateSessionID) { _, _ in cadence.capturePending() }
+        .onChange(of: transcript.source) { _, _ in cadence.capturePending() }
+        .onChange(of: overlay.isVisible) { _, visible in
+            if visible {
+                cadence.start(transcript: transcript, maxVisibleWords: subtitleVisibleWordCap, paceMode: subtitlePaceMode)
+                cadence.capturePending()
+            } else {
+                cadence.stop()
+            }
+        }
+        .onChange(of: subtitlePaceModeRaw) { _, _ in
+            cadence.updatePaceMode(subtitlePaceMode)
+        }
+    }
+
+    private var islandChromeBody: some View {
         VStack(spacing: 8) {
             if controlsVisible {
                 HStack(spacing: 10) {
@@ -1032,28 +1132,48 @@ public struct SubtitleOverlayView: View {
             }
         }
         .padding(10)
-        .onAppear {
-            if captionStyle == .classicStable {
-                cadence.start(transcript: transcript, maxVisibleWords: subtitleVisibleWordCap, paceMode: subtitlePaceMode)
+    }
+
+    private var movieChromeBody: some View {
+        GeometryReader { geo in
+            let frac = min(0.92, max(0.5, movieMaxWidthFraction))
+            let maxW = max(120, geo.size.width * CGFloat(frac))
+            let inset = CGFloat(max(24, movieInsetFromBottom))
+            ZStack {
+                Color.clear
+                VStack(spacing: 0) {
+                    Spacer(minLength: 0)
+                    HStack {
+                        Spacer(minLength: 0)
+                        movieCaptionStack(maxWidth: maxW)
+                        Spacer(minLength: 0)
+                    }
+                    .offset(x: CGFloat(movieHorizontalBiasPoints))
+                    .padding(.bottom, inset)
+                }
             }
+            .frame(width: geo.size.width, height: geo.size.height)
         }
-        .onDisappear {
-            cadence.stop()
-        }
-        .onChange(of: transcript.subtitleConfirmedWords) { _, _ in cadence.capturePending() }
-        .onChange(of: transcript.subtitleVolatileWords) { _, _ in cadence.capturePending() }
-        .onChange(of: transcript.subtitleFeedDictateSessionID) { _, _ in cadence.capturePending() }
-        .onChange(of: transcript.source) { _, _ in cadence.capturePending() }
-        .onChange(of: overlay.isVisible) { _, visible in
-            if visible {
-                cadence.start(transcript: transcript, maxVisibleWords: subtitleVisibleWordCap, paceMode: subtitlePaceMode)
-                cadence.capturePending()
-            } else {
-                cadence.stop()
-            }
-        }
-        .onChange(of: subtitlePaceModeRaw) { _, _ in
-            cadence.updatePaceMode(subtitlePaceMode)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    @ViewBuilder
+    private func movieCaptionStack(maxWidth: CGFloat) -> some View {
+        if transcript.source != .dictate || cadence.snapshot.tokens.isEmpty {
+            Color.clear.frame(width: 1, height: 1)
+        } else {
+            singleCaptionLine(
+                tokens: cadence.snapshot.tokens,
+                changeKind: cadence.snapshot.changeKind
+            )
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .fill(Color.black)
+            )
+            .frame(maxWidth: maxWidth, alignment: .center)
+            .animation(.easeInOut(duration: 0.1), value: lineWordSignature(cadence.snapshot.tokens))
         }
     }
 
@@ -1063,14 +1183,22 @@ public struct SubtitleOverlayView: View {
         changeKind: SubtitleLineChangeKind
     ) -> some View {
         let wordSig = lineWordSignature(tokens)
+        let isMovie = presentation == .movie
         Text(attributedCaptionLine(tokens: tokens))
             .font(captionFont(weight: .semibold))
             .lineLimit(1)
-            .multilineTextAlignment(.leading)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .frame(minHeight: lineMinHeight, alignment: .leading)
-            .id(rollLineIdentity(wordSignature: wordSig, changeKind: changeKind))
+            .multilineTextAlignment(isMovie ? .center : .leading)
+            .frame(maxWidth: .infinity, alignment: isMovie ? .center : .leading)
+            .frame(minHeight: lineMinHeight, alignment: isMovie ? .center : .leading)
+            .id(lineViewIdentity(wordSignature: wordSig, changeKind: changeKind))
             .transition(rollTransition(for: changeKind))
+    }
+
+    private func lineViewIdentity(wordSignature: String, changeKind: SubtitleLineChangeKind) -> String {
+        if presentation == .movie {
+            return "movie-\(wordSignature)"
+        }
+        return rollLineIdentity(wordSignature: wordSignature, changeKind: changeKind)
     }
 
     private func rollLineIdentity(wordSignature: String, changeKind: SubtitleLineChangeKind) -> String {
@@ -1083,9 +1211,22 @@ public struct SubtitleOverlayView: View {
     }
 
     private func rollTransition(for kind: SubtitleLineChangeKind) -> AnyTransition {
+        if presentation == .movie {
+            return movieTransition(for: kind)
+        }
         switch kind {
         case .lineRoll, .tailRevision:
             return AnyTransition.move(edge: .bottom).combined(with: .opacity)
+        case .confirmUpgrade, .idle, .reset:
+            return AnyTransition.opacity
+        }
+    }
+
+    /// Broadcast-style: no slide; quick crossfade between blocks.
+    private func movieTransition(for kind: SubtitleLineChangeKind) -> AnyTransition {
+        switch kind {
+        case .lineRoll, .tailRevision:
+            return .asymmetric(insertion: .opacity, removal: .opacity)
         case .confirmUpgrade, .idle, .reset:
             return AnyTransition.opacity
         }

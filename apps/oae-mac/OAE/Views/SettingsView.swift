@@ -1,7 +1,7 @@
 import SwiftUI
 
 private enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
-    case general, models, shortcuts, prompts, about
+    case general, models, shortcuts, prompts, updates, about
 
     var id: String { rawValue }
 
@@ -11,6 +11,7 @@ private enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
         case .models: return "Models"
         case .shortcuts: return "Shortcuts"
         case .prompts: return "Prompts"
+        case .updates: return "Updates"
         case .about: return "About"
         }
     }
@@ -21,6 +22,7 @@ private enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
         case .models: return "brain"
         case .shortcuts: return "keyboard"
         case .prompts: return "text.book.closed"
+        case .updates: return "arrow.down.circle"
         case .about: return "info.circle"
         }
     }
@@ -32,6 +34,7 @@ public struct SettingsView: View {
     @EnvironmentObject var hotkeys: HotkeyManager
     @EnvironmentObject var promptLibrary: PromptLibrary
     @EnvironmentObject var transcript: TranscriptStore
+    @EnvironmentObject var updateService: UpdateService
 
     @State private var section: SettingsSection = .general
 
@@ -54,6 +57,7 @@ public struct SettingsView: View {
                     case .models: ModelsTab()
                     case .shortcuts: ShortcutsTab()
                     case .prompts: PromptsTab()
+                    case .updates: UpdatesTab()
                     case .about: AboutTab()
                     }
                 }
@@ -76,9 +80,16 @@ private struct GeneralTab: View {
     @AppStorage(SettingsKey.liveStreamingPreset) var liveStreamingPresetRaw: String = LiveStreamer.StreamingPreset.ultraLowLatency.rawValue
     @AppStorage(SettingsKey.dictateRewriteLookbackWords) var rewriteLookbackWords: Int = 10
     @AppStorage(SettingsKey.subtitlePresentation) var subtitlePresentationRaw: String = SubtitlePresentationMode.floating.rawValue
+    @AppStorage(SettingsKey.subtitleMovieInsetFromBottom) var subtitleMovieInsetFromBottom: Double = 60
+    @AppStorage(SettingsKey.subtitleMovieMaxWidthFraction) var subtitleMovieMaxWidthFraction: Double = 0.72
+    @AppStorage(SettingsKey.subtitleMovieHorizontalBias) var subtitleMovieHorizontalBias: Double = 0
     @AppStorage(SettingsKey.subtitleCaptionStyle) var subtitleCaptionStyleRaw: String = SubtitleCaptionStyle.classicStable.rawValue
     @AppStorage(SettingsKey.subtitleIslandMonospace) var subtitleIslandMonospace: Bool = false
     @AppStorage(SettingsKey.subtitlePaceMode) var subtitlePaceModeRaw: String = SubtitlePaceMode.lectureStable.rawValue
+
+    private var subtitlePresentation: SubtitlePresentationMode {
+        SubtitlePresentationMode(rawValue: subtitlePresentationRaw) ?? .floating
+    }
 
     var body: some View {
         Form {
@@ -107,6 +118,34 @@ private struct GeneralTab: View {
             .onChange(of: subtitlePresentationRaw) { _, _ in
                 SubtitleOverlayController.shared.refreshAfterPresentationChange(transcript: transcript)
             }
+            if subtitlePresentation == .movie {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Text("Movie: distance from bottom")
+                        Spacer()
+                        Text("\(Int(subtitleMovieInsetFromBottom)) pt")
+                            .foregroundStyle(.secondary)
+                    }
+                    Slider(value: $subtitleMovieInsetFromBottom, in: 24...140, step: 2)
+                    HStack {
+                        Text("Movie: max line width")
+                        Spacer()
+                        Text("\(Int(subtitleMovieMaxWidthFraction * 100))%")
+                            .foregroundStyle(.secondary)
+                    }
+                    Slider(value: $subtitleMovieMaxWidthFraction, in: 0.5...0.92, step: 0.02)
+                    HStack {
+                        Text("Movie: horizontal nudge")
+                        Spacer()
+                        Text("\(Int(subtitleMovieHorizontalBias)) pt")
+                            .foregroundStyle(.secondary)
+                    }
+                    Slider(value: $subtitleMovieHorizontalBias, in: -200...200, step: 2)
+                }
+                Text("Movie mode uses a full-screen clear panel with a small black caption block; clicks pass through. Adjust placement here (not while dragging a floating island).")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
             Picker("Subtitle caption style", selection: $subtitleCaptionStyleRaw) {
                 ForEach(SubtitleCaptionStyle.allCases) { style in
                     Text(style.displayName).tag(style.rawValue)
@@ -121,7 +160,7 @@ private struct GeneralTab: View {
             .help("Lecture (stable) is the default: slower cadence, one-line captions (~7 words, auto-expanding to 8 when speech is fast), and spacing between confirm vs roll updates for readability. Realtime (faster) tightens those timings.")
             Toggle("Subtitle island: stable metrics (monospace)", isOn: $subtitleIslandMonospace)
                 .help("Optional advanced mode for maximum visual stability. Uses monospaced glyph metrics in the subtitle island.")
-            Text("Top notch strip pins subtitles under the menu bar on the main display. Floating island can be moved anywhere. Classic stable shows a single caption line with dim volatile tail and confirmed words in full opacity.")
+            Text("Layouts: floating island (draggable), top notch strip, or movie-style lower-third block. Classic stable shows one caption line with dim volatile tail and confirmed words in full opacity.")
                 .font(.caption).foregroundStyle(.secondary)
             Stepper(value: $confirmationSegments, in: 1...4) {
                 HStack { Text("Confirmation segments"); Spacer(); Text("\(confirmationSegments)") }
@@ -310,6 +349,132 @@ private struct PromptsTab: View {
         }
         .sheet(isPresented: $isCreating) {
             PromptEditorView().environmentObject(library)
+        }
+    }
+}
+
+// MARK: - Updates
+
+private struct UpdatesTab: View {
+    @EnvironmentObject var updateService: UpdateService
+    @AppStorage(SettingsKey.updatesWantsBeta) private var wantsBeta: Bool = false
+    @State private var autoCheck: Bool = true
+    @State private var showAllVersions = false
+    @State private var catalog: [UpdateService.AppcastCatalogEntry] = []
+    @State private var catalogLoading = false
+    @State private var catalogError: String?
+
+    var body: some View {
+        Form {
+            Section("In-app updates") {
+                Toggle("Automatically check for updates", isOn: $autoCheck)
+                    .onChange(of: autoCheck) { _, v in
+                        updateService.automaticallyChecksForUpdates = v
+                    }
+                Toggle("Receive beta updates", isOn: $wantsBeta)
+                    .onChange(of: wantsBeta) { _, _ in
+                        updateService.applyBetaChannelChange()
+                    }
+                Button("Check for Updates Now…") {
+                    updateService.checkForUpdates()
+                }
+                .disabled(!updateService.canCheckForUpdates)
+            }
+            Section("All releases") {
+                Button("Show all versions…") {
+                    showAllVersions = true
+                }
+                Text("Lists every DMG published in the update feed. Sparkle installs the newest compatible build automatically; use Download for a specific older or beta DMG.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .onAppear {
+            autoCheck = updateService.automaticallyChecksForUpdates
+        }
+        .sheet(isPresented: $showAllVersions) {
+            AppcastCatalogSheet(
+                catalog: $catalog,
+                loading: $catalogLoading,
+                errorText: $catalogError,
+                updateService: updateService
+            )
+            .frame(minWidth: 420, minHeight: 360)
+        }
+    }
+}
+
+private struct AppcastCatalogSheet: View {
+    @Binding var catalog: [UpdateService.AppcastCatalogEntry]
+    @Binding var loading: Bool
+    @Binding var errorText: String?
+    var updateService: UpdateService
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if loading {
+                    ProgressView("Loading catalog…")
+                } else if let err = errorText {
+                    Text(err).foregroundStyle(.red)
+                } else if catalog.isEmpty {
+                    Text("No releases found in the feed yet.")
+                        .foregroundStyle(.secondary)
+                } else {
+                    List(catalog) { row in
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack {
+                                Text(row.title).font(.headline)
+                                Spacer()
+                                if let ch = row.channel {
+                                    Text(ch)
+                                        .font(.caption2)
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 2)
+                                        .background(RoundedRectangle(cornerRadius: 4).fill(.quaternary))
+                                }
+                            }
+                            Text("Build \(row.versionString) · \(row.displayVersionString)")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            if row.isSameAsHost {
+                                Text("This build")
+                                    .font(.caption2)
+                                    .foregroundStyle(.green)
+                            } else if row.isNewerThanHost {
+                                Text("Newer than installed")
+                                    .font(.caption2)
+                                    .foregroundStyle(.blue)
+                            }
+                            if let url = row.downloadURL {
+                                Button("Download DMG…") {
+                                    updateService.openDownloadURL(url)
+                                }
+                                .buttonStyle(.borderedProminent)
+                            }
+                        }
+                        .padding(.vertical, 4)
+                    }
+                }
+            }
+            .padding(16)
+            .navigationTitle("All versions")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+            .task {
+                loading = true
+                errorText = nil
+                defer { loading = false }
+                do {
+                    catalog = try await updateService.fetchAppcastCatalog()
+                } catch {
+                    errorText = error.localizedDescription
+                }
+            }
         }
     }
 }
